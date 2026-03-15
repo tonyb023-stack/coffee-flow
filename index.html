@@ -70,14 +70,32 @@
                 db.ref('shift').on('value', snap => setShiftStatus(snap.val() || { active: false }));
             }, []);
 
-            // Fix for blank stats: Ensures calculations happen based on the active shift
             const shiftData = useMemo(() => {
                 const shiftOrders = shiftStatus.active 
                     ? history.filter(o => o.completedAt > (shiftStatus.startTime || 0))
                     : [];
                 const revenue = shiftOrders.reduce((sum, o) => sum + (Number(o.price) || 0), 0);
-                return { orders: shiftOrders, revenue, count: shiftOrders.length };
+                
+                // Calculate Top Drink
+                const counts = shiftOrders.reduce((acc, o) => {
+                    acc[o.flavor] = (acc[o.flavor] || 0) + 1;
+                    return acc;
+                }, {});
+                const topDrink = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, "None");
+
+                return { orders: shiftOrders, revenue, count: shiftOrders.length, topDrink };
             }, [history, shiftStatus]);
+
+            const exportToCSV = (data, filename) => {
+                const headers = ["Customer", "Drink", "Temp", "Milk", "Price", "Note"];
+                const rows = data.map(o => [o.customer, o.flavor, o.temp, o.milk, o.price, o.note || ""]);
+                const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `${filename}.csv`;
+                link.click();
+            };
 
             const markDone = (order) => {
                 const completedAt = Date.now();
@@ -150,7 +168,7 @@
                     {view === 'queue' && appMode === 'barista' && (
                         <div className="space-y-4">
                             {orders.map(order => (
-                                <div key={order.id} className="flex justify-between items-center p-8 rounded-[3rem] bg-white shadow-lg border-l-[16px] border-slate-900">
+                                <div key={order.id} className={`flex justify-between items-center p-8 rounded-[3rem] bg-white shadow-lg border-l-[16px] ${order.temp === 'Hot' ? 'border-red-500' : 'border-blue-500'}`}>
                                     <div><h2 className="text-3xl font-black text-slate-800">{order.customer}</h2><p className="text-slate-400 font-bold uppercase">{order.temp} {order.flavor} • {order.milk}</p></div>
                                     <button onClick={() => markDone(order)} className="bg-emerald-500 text-white w-20 h-20 rounded-3xl text-4xl font-black">✓</button>
                                 </div>
@@ -181,6 +199,11 @@
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-white p-8 rounded-[2rem] text-center"><p className="text-xs font-black text-slate-300 uppercase">Sales</p><p className="text-4xl font-black">${shiftData.revenue.toFixed(2)}</p></div>
                                 <div className="bg-white p-8 rounded-[2rem] text-center"><p className="text-xs font-black text-slate-300 uppercase">Drinks</p><p className="text-4xl font-black">{shiftData.count}</p></div>
+                                <div className="col-span-2 bg-slate-900 p-8 rounded-[2rem] text-center text-white"><p className="text-xs font-black text-slate-500 uppercase">Top Drink</p><p className="text-2xl font-black italic uppercase">{shiftData.topDrink}</p></div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2">
+                                <button onClick={() => exportToCSV(shiftData.orders, "Nebulous_Shift_Data")} className="w-full bg-blue-500 text-white p-4 rounded-2xl font-black uppercase text-xs tracking-widest">Export Current Shift</button>
+                                <button onClick={() => exportToCSV(history, "Nebulous_All_Time_History")} className="w-full bg-slate-200 text-slate-500 p-4 rounded-2xl font-black uppercase text-xs tracking-widest">Export Full History</button>
                             </div>
                         </div>
                     )}
@@ -203,8 +226,6 @@
                                     <button onClick={() => db.ref('menu').set([...menuDrinks, {name: "New Drink", price: 5, soldOut: false, image: ""}])} className="w-full bg-slate-100 p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Item</button>
                                 </div>
                             </div>
-
-                            {/* REINSTATED MILK MANAGEMENT */}
                             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm">
                                 <h2 className="text-xl font-black mb-6 uppercase italic">Milk Management</h2>
                                 <div className="space-y-3">
@@ -217,7 +238,6 @@
                                     <button onClick={() => db.ref('milks').set([...milks, {name: "New Milk", soldOut: false}])} className="w-full bg-slate-100 p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Milk Option</button>
                                 </div>
                             </div>
-
                             <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-xl">Enter Kiosk Mode</button>
                         </div>
                     )}
