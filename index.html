@@ -54,15 +54,15 @@
                     const data = snap.val() || {};
                     setOrders(Object.values(data).sort((a,b) => b.id - a.id));
                 });
-                db.ref('menu').on('value', snap => setMenuDrinks(snap.val() || []));
+                db.ref('menu').on('value', snap => {
+                    setMenuDrinks(snap.val() || []);
+                });
                 db.ref('milks').on('value', snap => setMilks(snap.val() || []));
                 db.ref('history').on('value', snap => {
-                    const data = snap.val() || {};
-                    setHistory(Object.values(data));
+                    setHistory(Object.values(snap.val() || {}));
                 });
             }, []);
 
-            // Dashboard Calculations
             const stats = useMemo(() => {
                 const today = new Date().setHours(0,0,0,0);
                 const todaysOrders = history.filter(o => o.startTime > today);
@@ -148,7 +148,7 @@
                             <input type="text" placeholder="Enter Your Name..." className="w-full p-8 text-4xl rounded-[3rem] shadow-xl mb-10 border-none bg-white outline-none focus:ring-4 focus:ring-orange-200" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                {menuDrinks.filter(d => !d.soldOut).map((drink) => (
+                                {(menuDrinks || []).filter(d => !d.soldOut).map((drink) => (
                                     <div key={drink.name} className="bg-white p-8 rounded-[4rem] shadow-md border border-slate-100 flex flex-col items-center">
                                         <h3 className="text-3xl font-black text-slate-700 mb-6 uppercase tracking-tight">{drink.name}</h3>
                                         <div className="flex gap-4 w-full">
@@ -157,6 +157,9 @@
                                         </div>
                                     </div>
                                 ))}
+                                {menuDrinks.length === 0 && (
+                                    <p className="col-span-full text-center text-slate-300 font-bold uppercase italic py-10">Waiting for menu to sync...</p>
+                                )}
                             </div>
                         </div>
                     )}
@@ -229,6 +232,24 @@
                                         const n = prompt("Drink Name:");
                                         if(n) db.ref('menu').set([...(menuDrinks || []), {name: n, price: 0, soldOut: false}]);
                                     }} className="w-full bg-orange-500 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-lg shadow-orange-100 mt-4">+ Add New Drink</button>
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-10 rounded-[3.5rem] shadow-md border border-slate-100">
+                                <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter text-slate-800">Milk Options</h2>
+                                <div className="space-y-4">
+                                    {(milks || []).map((m, i) => (
+                                        <div key={i} className="flex gap-2 animate-in">
+                                            <div className="flex-1 bg-slate-50 p-4 rounded-2xl font-black text-slate-700 uppercase italic">{m}</div>
+                                            <button onClick={() => {if(confirm("Delete milk?")){const n = [...milks]; n.splice(i,1); db.ref('milks').set(n);}}} className="bg-red-50 text-red-500 px-6 rounded-2xl font-bold">✕</button>
+                                        </div>
+                                    ))}
+                                    <button onClick={() => {
+                                        const m = prompt("Enter Milk Type:");
+                                        if(m) db.ref('milks').set([...(milks || []), m]);
+                                    }} className="w-full bg-slate-800 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest">
+                                        + Add Milk Type
+                                    </button>
                                 </div>
                             </div>
                         </div>
