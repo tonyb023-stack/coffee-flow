@@ -44,7 +44,9 @@
             measurementId: "G-7K3GCP3XL5"
         };
 
-        firebase.initializeApp(firebaseConfig);
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
         const db = firebase.database();
 
         const BaristaApp = () => {
@@ -54,20 +56,71 @@
             const [history, setHistory] = useState([]);
             const [menuDrinks, setMenuDrinks] = useState([]);
             const [milks, setMilks] = useState([]);
+            const [shiftStatus, setShiftStatus] = useState({ active: false, startTime: 0 });
+            
             const [customerName, setCustomerName] = useState('');
             const [pendingOrder, setPendingOrder] = useState(null);
             const [selectedMilk, setSelectedMilk] = useState(null);
             const [showSuccess, setShowSuccess] = useState(false);
 
             useEffect(() => {
-                db.ref('orders').on('value', snap => setOrders(Object.values(snap.val() || {}).sort((a,b) => b.id - a.id)));
-                db.ref('history').on('value', snap => setHistory(Object.values(snap.val() || {}).sort((a,b) => b.completedAt - a.completedAt)));
-                db.ref('menu').on('value', snap => setMenuDrinks(snap.val() || []));
-                db.ref('milks').on('value', snap => setMilks(snap.val() || []));
+                const ordersRef = db.ref('orders');
+                const historyRef = db.ref('history');
+                const menuRef = db.ref('menu');
+                const milksRef = db.ref('milks');
+                const shiftRef = db.ref('shift');
+
+                ordersRef.on('value', snap => setOrders(Object.values(snap.val() || {}).sort((a,b) => b.id - a.id)));
+                historyRef.on('value', snap => setHistory(Object.values(snap.val() || {}).sort((a,b) => b.completedAt - a.completedAt)));
+                menuRef.on('value', snap => setMenuDrinks(snap.val() || []));
+                milksRef.on('value', snap => setMilks(snap.val() || []));
+                shiftRef.on('value', snap => setShiftStatus(snap.val() || { active: false, startTime: 0 }));
+
+                return () => {
+                    ordersRef.off(); historyRef.off(); menuRef.off(); milksRef.off(); shiftRef.off();
+                };
             }, []);
 
-            const updateMenu = (newList) => db.ref('menu').set(newList);
-            const updateMilks = (newList) => db.ref('milks').set(newList);
+            // RESTORED & FIXED: Stats Logic
+            const statsData = useMemo(() => {
+                const shiftOrders = shiftStatus.active 
+                    ? history.filter(o => o.completedAt > (shiftStatus.startTime || 0))
+                    : [];
+                
+                const revenue = shiftOrders.reduce((sum, o) => sum + (Number(o.price) || 0), 0);
+                const counts = shiftOrders.reduce((acc, o) => { 
+                    acc[o.flavor] = (acc[o.flavor] || 0) + 1; 
+                    return acc; 
+                }, {});
+                
+                const topDrink = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, "N/A");
+                
+                return { revenue, count: shiftOrders.length, topDrink, shiftOrders };
+            }, [history, shiftStatus]);
+
+            const exportFilteredCSV = (days, filename) => {
+                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+                const data = history.filter(o => o.completedAt >= cutoff);
+                
+                const headers = ["Date", "Customer", "Drink", "Milk", "Price", "Wait (Sec)"];
+                const rows = data.map(o => [
+                    new Date(o.completedAt).toLocaleString(),
+                    o.customer, o.flavor, o.milk, o.price, o.waitTimeSeconds || 0
+                ]);
+                const csv = [headers, ...rows].map(e => e.join(",")).join("\n");
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `${filename}.csv`;
+                link.click();
+            };
+
+            const markDone = (order) => {
+                const completedAt = Date.now();
+                const waitTimeSeconds = Math.floor((completedAt - order.startTime) / 1000);
+                db.ref('history/' + order.id).set({ ...order, status: 'Completed', completedAt, waitTimeSeconds });
+                db.ref('orders/' + order.id).remove();
+            };
 
             const finalizeOrder = () => {
                 const newOrder = {
@@ -77,7 +130,7 @@
                 };
                 db.ref('orders/' + newOrder.id).set(newOrder);
                 setPendingOrder(null); setSelectedMilk(null); setCustomerName(''); setShowSuccess(true);
-                setTimeout(() => setShowSuccess(false), 3000);
+                setTimeout(() => setShowSuccess(false), 2000);
             };
 
             return (
@@ -92,45 +145,84 @@
                         </nav>
                     )}
 
+                    {view === 'queue' && appMode === 'barista' && (
+                        <div className="space-y-4 animate-in">
+                            {orders.length === 0 && <p className="text-center py-20 font-black text-slate-300 uppercase italic">No active orders</p>}
+                            {orders.map(order => (
+                                <div key={order.id} className={`flex justify-between items-center p-8 rounded-[3rem] bg-white shadow-lg border-l-[16px] ${order.temp === 'Hot' ? 'border-red-500' : 'border-blue-500'}`}>
+                                    <div><h2 className="text-3xl font-black text-slate-800">{order.customer}</h2><p className="text-slate-400 font-bold uppercase">{order.temp} {order.flavor} • {order.milk}</p></div>
+                                    <button onClick={() => markDone(order)} className="bg-emerald-500 text-white w-20 h-20 rounded-3xl text-4xl font-black">✓</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {view === 'history' && appMode === 'barista' && (
+                        <div className="space-y-4 animate-in">
+                            {history.length === 0 && <p className="text-center py-20 font-black text-slate-300 uppercase italic">History is empty</p>}
+                            {history.map(order => (
+                                <div key={order.id} className="flex justify-between items-center p-6 bg-white rounded-3xl border border-slate-100 opacity-80">
+                                    <div>
+                                        <h3 className="font-black uppercase text-slate-800">{order.customer}</h3>
+                                        <p className="text-xs font-bold text-slate-400 uppercase">{order.flavor} • {order.milk} • ${order.price} • {order.waitTimeSeconds}s wait</p>
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-300 uppercase">{new Date(order.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {view === 'stats' && appMode === 'barista' && (
+                        <div className="space-y-6 animate-in">
+                            <button onClick={() => {
+                                if (shiftStatus.active && confirm("End Shift?")) db.ref('shift').set({ active: false, startTime: 0 });
+                                else if (!shiftStatus.active) db.ref('shift').set({ active: true, startTime: Date.now() });
+                            }} className={`w-full p-6 rounded-[2rem] font-black uppercase text-white shadow-lg ${shiftStatus.active ? 'bg-red-500' : 'bg-emerald-500'}`}>
+                                {shiftStatus.active ? 'End Shift' : 'Start Shift'}
+                            </button>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white p-8 rounded-[2rem] text-center shadow-sm border">
+                                    <p className="text-xs font-black text-slate-300 uppercase">Shift Sales</p>
+                                    <p className="text-4xl font-black">${statsData.revenue.toFixed(2)}</p>
+                                </div>
+                                <div className="bg-white p-8 rounded-[2rem] text-center shadow-sm border">
+                                    <p className="text-xs font-black text-slate-300 uppercase">Top Drink</p>
+                                    <p className="text-xl font-black italic uppercase truncate">{statsData.topDrink}</p>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-900 p-8 rounded-[2rem] space-y-4">
+                                <h3 className="text-white font-black uppercase text-xs tracking-widest text-center opacity-50">Reports</h3>
+                                <button onClick={() => exportFilteredCSV(1, "Daily_Report")} className="w-full bg-slate-800 text-white p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-slate-700">Daily CSV</button>
+                                <button onClick={() => exportFilteredCSV(7, "Weekly_Report")} className="w-full bg-slate-800 text-white p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-slate-700">Weekly CSV</button>
+                                <button onClick={() => exportFilteredCSV(30, "Monthly_Report")} className="w-full bg-slate-800 text-white p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-slate-700">Monthly CSV</button>
+                            </div>
+                        </div>
+                    )}
+
                     {view === 'settings' && appMode === 'barista' && (
-                        <div className="space-y-8 pb-12 animate-in">
+                        <div className="space-y-8 animate-in">
                             <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                <h2 className="text-xl font-black mb-6 uppercase italic text-slate-800">Flavor Menu</h2>
+                                <h2 className="text-xl font-black mb-6 uppercase italic text-slate-800">Menu</h2>
                                 <div className="space-y-6">
                                     {menuDrinks.map((d, i) => (
                                         <div key={i} className="p-5 bg-slate-50 rounded-[2rem] space-y-4">
                                             <div className="flex gap-2 items-center">
                                                 {d.image && <img src={d.image} className="preview-img bg-white border" />}
-                                                <input className="flex-1 bg-white p-3 rounded-xl font-black uppercase text-sm border border-slate-100" placeholder="Drink Name" value={d.name} onChange={(e) => { const n = [...menuDrinks]; n[i].name = e.target.value; updateMenu(n); }} />
-                                                <input type="number" step="0.01" className="w-20 p-3 bg-white rounded-xl font-bold border border-slate-100" placeholder="0.00" value={d.price} onChange={(e) => { const n = [...menuDrinks]; n[i].price = e.target.value; updateMenu(n); }} />
-                                                <button onClick={() => { if(confirm('Delete flavor?')) { const n = menuDrinks.filter((_, idx) => idx !== i); updateMenu(n); }}} className="bg-red-100 text-red-600 px-4 py-3 rounded-xl font-black">✕</button>
+                                                <input className="flex-1 bg-white p-3 rounded-xl font-black uppercase text-sm border border-slate-100" value={d.name} onChange={(e) => { const n = [...menuDrinks]; n[i].name = e.target.value; db.ref('menu').set(n); }} />
+                                                <input type="number" step="0.01" className="w-20 p-3 bg-white rounded-xl font-bold border border-slate-100" value={d.price} onChange={(e) => { const n = [...menuDrinks]; n[i].price = e.target.value; db.ref('menu').set(n); }} />
+                                                <button onClick={() => { if(confirm('Delete?')) { const n = menuDrinks.filter((_, idx) => idx !== i); db.ref('menu').set(n); }}} className="bg-red-100 text-red-600 px-4 py-3 rounded-xl font-black">✕</button>
                                             </div>
-                                            <input className="w-full bg-white p-3 rounded-xl text-xs font-mono border border-slate-100" placeholder="Paste Image URL here..." value={d.image || ''} onChange={(e) => { const n = [...menuDrinks]; n[i].image = e.target.value; updateMenu(n); }} />
-                                            <button onClick={() => { const n = [...menuDrinks]; n[i].soldOut = !d.soldOut; updateMenu(n); }} className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                                            <input className="w-full bg-white p-3 rounded-xl text-xs font-mono border border-slate-100" placeholder="Image URL" value={d.image || ''} onChange={(e) => { const n = [...menuDrinks]; n[i].image = e.target.value; db.ref('menu').set(n); }} />
+                                            <button onClick={() => { const n = [...menuDrinks]; n[i].soldOut = !d.soldOut; db.ref('menu').set(n); }} className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
                                                 {d.soldOut ? 'SOLD OUT' : 'IN STOCK'}
                                             </button>
                                         </div>
                                     ))}
-                                    <button onClick={() => updateMenu([...menuDrinks, {name: "New Flavor", price: 5.00, soldOut: false, image: ""}])} className="w-full bg-slate-100 border-2 border-dashed border-slate-200 p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add New Flavor</button>
+                                    <button onClick={() => db.ref('menu').set([...menuDrinks, {name: "New", price: 5, soldOut: false, image: ""}])} className="w-full bg-slate-100 border-2 border-dashed p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Drink</button>
                                 </div>
                             </div>
-
-                            <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                <h2 className="text-xl font-black mb-6 uppercase italic text-slate-800">Milk Options</h2>
-                                <div className="space-y-3">
-                                    {milks.map((m, i) => (
-                                        <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                                            <input className="flex-1 bg-transparent p-1 font-black text-slate-700 uppercase outline-none" value={m.name} onChange={(e) => { const n = [...milks]; n[i].name = e.target.value; updateMilks(n); }} />
-                                            <button onClick={() => { const n = [...milks]; n[i].soldOut = !m.soldOut; updateMilks(n); }} className={`px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-tighter ${m.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                                                {m.soldOut ? 'OUT' : 'IN'}
-                                            </button>
-                                            <button onClick={() => { if(confirm('Remove milk?')) { const n = milks.filter((_, idx) => idx !== i); updateMilks(n); }}} className="text-slate-300 hover:text-red-500 px-2 font-black">✕</button>
-                                        </div>
-                                    ))}
-                                    <button onClick={() => updateMilks([...milks, {name: "New Milk", soldOut: false}])} className="w-full bg-slate-100 border-2 border-dashed border-slate-200 p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Milk Type</button>
-                                </div>
-                            </div>
-                            
                             <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-xl">Enter Kiosk Mode</button>
                         </div>
                     )}
@@ -140,10 +232,10 @@
                             <header className="text-center mb-16" onClick={() => { setAppMode('barista'); setView('settings'); }}>
                                 <h1 className="text-6xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">NEBULOUS</h1>
                             </header>
-                            <input type="text" placeholder="WHO IS THIS FOR?" className="w-full bg-transparent border-b-4 border-slate-200 p-4 text-4xl font-black uppercase text-center outline-none mb-10" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                            <input type="text" placeholder="WHO IS THIS FOR?" className="w-full bg-transparent border-b-4 border-slate-200 p-4 text-4xl font-black uppercase text-center focus:border-orange-500 outline-none mb-10" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
                             <div className="grid grid-cols-1 gap-8">
                                 {menuDrinks.filter(d => !d.soldOut).map((drink) => (
-                                    <div key={drink.name} className="bg-white rounded-[2.5rem] overflow-hidden shadow-lg border border-slate-50">
+                                    <div key={drink.name} className="bg-white rounded-[2.5rem] overflow-hidden shadow-lg border">
                                         {drink.image ? <img src={drink.image} className="kiosk-img" /> : <div className="nebulous-placeholder"><span className="text-white/20 font-black italic text-4xl">N</span></div>}
                                         <div className="p-8">
                                             <div className="flex justify-between items-baseline mb-8">
@@ -167,14 +259,21 @@
                                 <h2 className="text-5xl font-black uppercase italic text-center mb-10">{pendingOrder.name}</h2>
                                 <div className="grid grid-cols-1 gap-3 mb-10">
                                     {milks.filter(m => !m.soldOut).map(m => (
-                                        <button key={m.name} onClick={() => setSelectedMilk(m.name)} className={`border-4 p-6 rounded-[2rem] text-xl font-black uppercase italic transition-all ${selectedMilk === m.name ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-900'}`}>{m.name}</button>
+                                        <button key={m.name} onClick={() => setSelectedMilk(m.name)} className={`border-4 p-6 rounded-[2rem] text-xl font-black uppercase italic ${selectedMilk === m.name ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-900'}`}>{m.name}</button>
                                     ))}
                                 </div>
                                 {selectedMilk && (
-                                    <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-6 rounded-[2rem] font-black uppercase text-xl shadow-lg">Confirm - ${Number(pendingOrder.price || 0).toFixed(2)}</button>
+                                    <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-6 rounded-[2rem] font-black uppercase text-xl shadow-lg">Confirm Order</button>
                                 )}
-                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); }} className="mt-8 w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-md">Go Back</button>
+                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); }} className="mt-8 w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-xs">Go Back</button>
                             </div>
+                        </div>
+                    )}
+
+                    {showSuccess && (
+                        <div className="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center animate-in">
+                            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4"><span className="text-4xl font-black">✓</span></div>
+                            <h1 className="text-3xl font-black uppercase italic">ORDERED</h1>
                         </div>
                     )}
                 </div>
