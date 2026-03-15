@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Anu Day Coffee Pro</title>
+    <title>Nebulous Coffee Pro</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -113,9 +113,10 @@
             };
 
             if (showSuccess) return (
-                <div className="flex flex-col items-center justify-center h-screen bg-orange-500 text-white animate-in">
-                    <h1 className="text-7xl font-black mb-4 uppercase italic tracking-tighter">Order Sent!</h1>
-                    <p className="text-2xl font-bold opacity-90 uppercase tracking-widest">See you at the counter</p>
+                <div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-white animate-in text-center p-6">
+                    <h1 className="text-6xl font-black mb-4 uppercase italic tracking-tighter">Nebulous Coffee</h1>
+                    <div className="h-1 w-32 bg-orange-500 mb-6"></div>
+                    <p className="text-2xl font-bold opacity-90 uppercase tracking-widest">Order Sent! See you soon.</p>
                 </div>
             );
 
@@ -126,7 +127,7 @@
                     {appMode === 'barista' && (
                         <nav className="grid grid-cols-4 gap-2 mb-8 bg-white p-2 rounded-[2rem] shadow-sm border border-slate-200">
                             {['queue', 'history', 'stats', 'settings'].map(v => (
-                                <button key={v} onClick={() => setView(v)} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest ${view === v ? 'bg-orange-500 text-white shadow-lg' : 'text-slate-400'}`}>
+                                <button key={v} onClick={() => setView(v)} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest ${view === v ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>
                                     {v}
                                 </button>
                             ))}
@@ -135,8 +136,8 @@
 
                     {appMode === 'kiosk' && (
                         <div className="animate-in pt-10">
-                            <h1 className="text-4xl text-center mb-10 font-black text-slate-800 uppercase italic tracking-tighter">Anu Day Coffee</h1>
-                            <input type="text" placeholder="ENTER YOUR NAME..." className="w-full p-8 text-4xl rounded-[3rem] shadow-xl mb-10 border-none bg-white outline-none focus:ring-4 focus:ring-orange-200 text-center font-black uppercase" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                            <h1 className="text-5xl text-center mb-10 font-black text-slate-900 uppercase italic tracking-tighter">Nebulous Coffee</h1>
+                            <input type="text" placeholder="ENTER YOUR NAME..." className="w-full p-8 text-4xl rounded-[3rem] shadow-xl mb-10 border-none bg-white outline-none focus:ring-4 focus:ring-slate-200 text-center font-black uppercase" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 {(menuDrinks || []).filter(d => !d.soldOut).map((drink) => (
@@ -146,8 +147,8 @@
                                             <span className="text-xl font-black text-orange-500">${Number(drink.price || 0).toFixed(2)}</span>
                                         </div>
                                         <div className="flex gap-4 w-full">
-                                            <button onClick={() => addOrder(drink, 'Hot')} className="flex-1 bg-orange-100 text-orange-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">HOT</button>
-                                            <button onClick={() => addOrder(drink, 'Iced')} className="flex-1 bg-blue-100 text-blue-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">ICED</button>
+                                            <button onClick={() => addOrder(drink, 'Hot')} className="flex-1 bg-orange-50 text-orange-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">HOT</button>
+                                            <button onClick={() => addOrder(drink, 'Iced')} className="flex-1 bg-blue-50 text-blue-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">ICED</button>
                                         </div>
                                     </div>
                                 ))}
@@ -155,12 +156,11 @@
                         </div>
                     )}
 
-                    {/* BARISTA VIEWS (QUEUE, STATS, SETTINGS) REMAIN THE SAME AS PREVIOUS STEP */}
                     {appMode === 'barista' && view === 'queue' && (
                         <div className="animate-in space-y-6">
-                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Live Orders</h2>
+                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Orders</h2>
                             {orders.map(order => (
-                                <div key={order.id} className="flex justify-between items-center p-8 rounded-[3.5rem] bg-white shadow-xl border-l-[20px] border-orange-500 animate-in">
+                                <div key={order.id} className="flex justify-between items-center p-8 rounded-[3.5rem] bg-white shadow-xl border-l-[20px] border-slate-900 animate-in">
                                     <div className="flex-1">
                                         <h2 className="text-4xl font-black text-slate-800">{order.customer}</h2>
                                         <p className="text-slate-500 font-extrabold text-lg uppercase">{order.temp} {order.flavor} • {order.milk}</p>
@@ -173,13 +173,13 @@
 
                     {view === 'stats' && appMode === 'barista' && (
                         <div className="animate-in space-y-6">
-                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Performance</h2>
+                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Dashboard</h2>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="bg-white p-8 rounded-[3rem] shadow-sm text-center">
                                     <p className="text-slate-400 font-black uppercase text-xs mb-2">Total Drinks</p>
                                     <p className="text-5xl font-black text-slate-800">{stats.count}</p>
                                 </div>
-                                <div className="bg-orange-500 p-8 rounded-[3rem] shadow-lg text-center text-white">
+                                <div className="bg-slate-900 p-8 rounded-[3rem] shadow-lg text-center text-white">
                                     <p className="opacity-70 font-black uppercase text-xs mb-2">Today's Revenue</p>
                                     <p className="text-5xl font-black">${stats.revenue.toFixed(2)}</p>
                                 </div>
@@ -218,26 +218,25 @@
                                     <button onClick={() => {
                                         const n = prompt("Drink Name:");
                                         if(n) db.ref('menu').set([...(menuDrinks || []), {name: n, price: 5.00, soldOut: false}]);
-                                    }} className="w-full bg-orange-500 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-lg shadow-orange-100 mt-4">+ Add New Drink</button>
+                                    }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-lg mt-4">+ Add New Drink</button>
                                 </div>
                             </div>
 
-                            <div className="bg-slate-800 text-white p-10 rounded-[3rem]">
-                                <h2 className="text-xl font-black uppercase mb-4 text-slate-400">Device Mode</h2>
+                            <div className="bg-slate-200 text-slate-900 p-10 rounded-[3rem]">
+                                <h2 className="text-xl font-black uppercase mb-4 opacity-50">Device Mode</h2>
                                 <div className="flex gap-4">
-                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="flex-1 p-5 rounded-2xl font-black uppercase text-xs bg-slate-700">Set Kiosk</button>
-                                    <button onClick={() => { setAppMode('barista'); localStorage.setItem('app-mode', 'barista'); }} className="flex-1 p-5 rounded-2xl font-black uppercase text-xs bg-emerald-500">Set Barista</button>
+                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="flex-1 p-5 rounded-2xl font-black uppercase text-xs bg-slate-300">Set Kiosk</button>
+                                    <button onClick={() => { setAppMode('barista'); localStorage.setItem('app-mode', 'barista'); }} className="flex-1 p-5 rounded-2xl font-black uppercase text-xs bg-slate-900 text-white">Set Barista</button>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* KIOSK PRICE SUMMARY POPUP */}
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 z-[100]">
                             <div className="bg-white w-full max-w-lg rounded-[4rem] p-10 text-center animate-in shadow-2xl">
                                 <div className="mb-6">
-                                    <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Confirming Order For</p>
+                                    <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Nebulous Coffee</p>
                                     <h2 className="text-3xl font-black text-slate-800 uppercase italic">{pendingOrder.customer}</h2>
                                 </div>
                                 <div className="bg-slate-50 p-6 rounded-[2.5rem] mb-10 border border-slate-100">
@@ -247,7 +246,7 @@
                                 <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-6">Choose Your Milk</h3>
                                 <div className="grid grid-cols-1 gap-4">
                                     {(milks || []).map(m => (
-                                        <button key={m} onClick={() => finalizeOrder(m)} className="bg-white hover:bg-orange-50 p-8 rounded-[2.5rem] text-3xl font-black border-2 border-slate-100 text-slate-800 active:scale-95 transition uppercase">
+                                        <button key={m} onClick={() => finalizeOrder(m)} className="bg-white hover:bg-slate-50 p-8 rounded-[2.5rem] text-3xl font-black border-2 border-slate-100 text-slate-800 active:scale-95 transition uppercase">
                                             {m}
                                         </button>
                                     ))}
