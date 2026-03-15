@@ -20,8 +20,6 @@
         .card-shadow { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08); }
         .kiosk-img { width: 100%; height: 280px; object-fit: cover; border-radius: 3.5rem 3.5rem 0 0; }
         #exit-zone { position: fixed; top: 0; right: 0; width: 120px; height: 120px; z-index: 10000; cursor: pointer; background: transparent; }
-        
-        /* Typography Polish */
         .tight-tracking { letter-spacing: -0.05em; }
         .wide-tracking { letter-spacing: 0.15em; }
     </style>
@@ -105,7 +103,7 @@
 
             return (
                 <div className="max-w-4xl mx-auto p-4 md:p-8">
-                    {/* BARISTA MODE (UNTOUCHED) */}
+                    {/* BARISTA UI (Unchanged) */}
                     {appMode === 'barista' && (
                          <nav className="grid grid-cols-4 gap-2 mb-8 bg-white p-2 rounded-3xl soft-shadow border border-slate-100">
                             {['queue', 'history', 'stats', 'settings'].map(v => (
@@ -147,12 +145,13 @@
                         </div>
                     )}
 
-                    {/* KIOSK MODE: CHECKOUT (CLEANED UP & PROFESSIONAL) */}
+                    {/* KIOSK MODE: CHECKOUT */}
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center p-8 overflow-y-auto">
                             <div className="max-w-xl w-full animate-in text-center py-16">
                                 <div className="mb-14">
-                                    <p className="text-2xl font-black uppercase wide-tracking text-slate-200 mb-6">{pendingOrder.temp}</p>
+                                    {/* UPDATED: Darker Gray for Temp label */}
+                                    <p className="text-3xl font-black uppercase wide-tracking text-slate-500 mb-6">{pendingOrder.temp}</p>
                                     <h2 className="text-9xl font-black uppercase italic text-slate-900 leading-none tight-tracking mb-2">{pendingOrder.name}</h2>
                                     <div className="h-2 w-24 bg-slate-900 mx-auto rounded-full mt-6"></div>
                                 </div>
@@ -181,7 +180,7 @@
                                             
                                             <div className="pt-8 border-t border-slate-100">
                                                 <div className="flex justify-between items-center mb-8 px-4">
-                                                    <span className="text-slate-400 font-bold uppercase tracking-widest">Total Amount</span>
+                                                    <span className="text-slate-400 font-bold uppercase tracking-widest text-sm">Total Amount</span>
                                                     <span className="text-4xl font-black uppercase text-slate-900 italic">${Number(pendingOrder.price).toFixed(2)}</span>
                                                 </div>
                                                 <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-11 rounded-[3rem] font-black uppercase text-4xl active:scale-[0.97] transition-all">Confirm Order</button>
@@ -189,7 +188,8 @@
                                         </div>
                                     )}
                                 </div>
-                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-200 font-black uppercase text-2xl wide-tracking mt-16 hover:text-slate-400 transition-colors">Go Back</button>
+                                {/* UPDATED: Darker Gray for Go Back button */}
+                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-400 font-black uppercase text-2xl wide-tracking mt-16 hover:text-slate-600 transition-colors">Go Back</button>
                             </div>
                         </div>
                     )}
