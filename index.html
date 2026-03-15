@@ -103,7 +103,7 @@
 
             return (
                 <div className="max-w-4xl mx-auto p-4 md:p-8">
-                    {/* BARISTA UI (Unchanged) */}
+                    {/* BARISTA UI (UNTOUCHED) */}
                     {appMode === 'barista' && (
                          <nav className="grid grid-cols-4 gap-2 mb-8 bg-white p-2 rounded-3xl soft-shadow border border-slate-100">
                             {['queue', 'history', 'stats', 'settings'].map(v => (
@@ -125,8 +125,9 @@
                         <div className="animate-in pt-16 pb-24 text-center">
                             <div id="exit-zone" onClick={handleExitLogic}></div>
                             <h1 className="text-8xl font-black text-slate-900 tight-tracking uppercase italic leading-none mb-20">NEBULOUS</h1>
-                            <div className="max-w-md mx-auto mb-20">
-                                <input type="text" placeholder="NAME FOR ORDER" className="w-full bg-transparent border-b-[6px] border-slate-100 p-4 text-4xl font-black uppercase text-center outline-none focus:border-slate-900 transition-all placeholder:text-slate-200" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                            <div className="max-w-lg mx-auto mb-20">
+                                {/* UPDATED: More prominent Name for Order Input */}
+                                <input type="text" placeholder="NAME FOR ORDER" className="w-full bg-transparent border-b-[8px] border-slate-900 p-4 text-5xl font-black uppercase text-center outline-none focus:scale-[1.02] transition-all placeholder:text-slate-200 text-slate-900" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
                             </div>
                             <div className="grid grid-cols-1 gap-14">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
@@ -150,9 +151,9 @@
                         <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center p-8 overflow-y-auto">
                             <div className="max-w-xl w-full animate-in text-center py-16">
                                 <div className="mb-14">
-                                    {/* UPDATED: Darker Gray for Temp label */}
                                     <p className="text-3xl font-black uppercase wide-tracking text-slate-500 mb-6">{pendingOrder.temp}</p>
-                                    <h2 className="text-9xl font-black uppercase italic text-slate-900 leading-none tight-tracking mb-2">{pendingOrder.name}</h2>
+                                    {/* UPDATED: Decreased Drink Title font size */}
+                                    <h2 className="text-7xl font-black uppercase italic text-slate-900 leading-tight tight-tracking mb-2">{pendingOrder.name}</h2>
                                     <div className="h-2 w-24 bg-slate-900 mx-auto rounded-full mt-6"></div>
                                 </div>
                                 
@@ -188,7 +189,6 @@
                                         </div>
                                     )}
                                 </div>
-                                {/* UPDATED: Darker Gray for Go Back button */}
                                 <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-400 font-black uppercase text-2xl wide-tracking mt-16 hover:text-slate-600 transition-colors">Go Back</button>
                             </div>
                         </div>
