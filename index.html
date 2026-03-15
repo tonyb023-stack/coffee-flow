@@ -97,7 +97,13 @@
                 const filtered = shiftStatus.active ? history.filter(o => o.completedAt > shiftStatus.startTime) : [];
                 const revenue = filtered.reduce((s, o) => s + (Number(o.price) || 0), 0);
                 const counts = filtered.reduce((a, o) => { a[o.flavor] = (a[o.flavor] || 0) + 1; return a; }, {});
-                const top = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, "N/A");
+                
+                let top = "N/A";
+                let max = 0;
+                Object.entries(counts).forEach(([flavor, count]) => {
+                    if (count > max) { max = count; top = flavor; }
+                });
+
                 return { revenue, top, count: filtered.length };
             }, [history, shiftStatus]);
 
@@ -169,9 +175,10 @@
                                 className={`w-full p-8 rounded-[2.5rem] font-black uppercase text-white shadow-xl ${shiftStatus.active ? 'bg-red-500' : 'bg-emerald-500'}`}>
                                 {shiftStatus.active ? 'End Active Shift' : 'Start New Shift'}
                             </button>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-white p-10 rounded-[2.5rem] text-center shadow-sm border"><p className="text-[10px] font-black text-slate-300 uppercase mb-2">Revenue</p><p className="text-4xl font-black tracking-tighter">${statsData.revenue.toFixed(2)}</p></div>
-                                <div className="bg-white p-10 rounded-[2.5rem] text-center shadow-sm border"><p className="text-[10px] font-black text-slate-300 uppercase mb-2">Orders</p><p className="text-4xl font-black tracking-tighter">{statsData.count}</p></div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="bg-white p-8 rounded-[2.5rem] text-center shadow-sm border"><p className="text-[10px] font-black text-slate-300 uppercase mb-2">Revenue</p><p className="text-3xl font-black tracking-tighter text-slate-900">${statsData.revenue.toFixed(2)}</p></div>
+                                <div className="bg-white p-8 rounded-[2.5rem] text-center shadow-sm border"><p className="text-[10px] font-black text-slate-300 uppercase mb-2">Orders</p><p className="text-3xl font-black tracking-tighter text-slate-900">{statsData.count}</p></div>
+                                <div className="bg-white p-8 rounded-[2.5rem] text-center shadow-sm border border-slate-900"><p className="text-[10px] font-black text-slate-400 uppercase mb-2 italic">Top Drink</p><p className="text-xl font-black tracking-tight text-slate-900 uppercase italic">{statsData.top}</p></div>
                             </div>
                             <div className="bg-slate-900 p-8 rounded-[3rem] space-y-3">
                                 <p className="text-center text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Export Reports</p>
