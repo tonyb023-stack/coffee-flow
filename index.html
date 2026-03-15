@@ -102,6 +102,17 @@
                 return { revenue, top, count: filtered.length };
             }, [history, shiftStatus]);
 
+            const exportCSV = (days, label) => {
+                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+                const data = history.filter(o => o.completedAt > cutoff);
+                const csv = "Customer,Flavor,Temp,Milk,Price,Note,Wait(s)\n" + 
+                    data.map(o => `${o.customer},${o.flavor},${o.temp},${o.milk},${o.price},"${o.note || ''}",${o.waitTimeSeconds || 0}`).join("\n");
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `Nebulous_${label}_Report.csv`; a.click();
+            };
+
             const finalizeOrder = () => {
                 const id = Date.now();
                 db.ref(`orders/${id}`).set({
@@ -182,23 +193,53 @@
                                 <div className="bg-white p-8 rounded-[2.5rem] text-center soft-shadow border"><p className="text-[10px] font-black text-slate-300 uppercase mb-2">Orders</p><p className="text-3xl font-black text-slate-900">{statsData.count}</p></div>
                                 <div className="bg-slate-900 p-8 rounded-[2.5rem] text-center col-span-2 shadow-xl"><p className="text-[10px] font-black text-slate-500 uppercase mb-2 italic">Best Seller</p><p className="text-xl font-black text-white uppercase italic">{statsData.top}</p></div>
                             </div>
+                            
+                            <div className="bg-slate-50 p-6 rounded-[3rem] border border-slate-100 mt-8 space-y-3">
+                                <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Export Data Reports</p>
+                                <button onClick={() => exportCSV(1, "Daily")} className="w-full bg-white border border-slate-200 text-slate-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-sm active:bg-slate-100">Download Last 24h</button>
+                                <button onClick={() => exportCSV(7, "Weekly")} className="w-full bg-white border border-slate-200 text-slate-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-sm active:bg-slate-100">Download Last 7d</button>
+                                <button onClick={() => exportCSV(30, "Monthly")} className="w-full bg-white border border-slate-200 text-slate-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-sm active:bg-slate-100">Download Last 30d</button>
+                            </div>
                         </div>
                     )}
 
                     {/* BARISTA VIEW: SETTINGS */}
                     {appMode === 'barista' && view === 'settings' && (
                         <div className="space-y-8 animate-in pb-12">
+                            {/* MENU MANAGEMENT SECTION */}
                             <div className="bg-white p-8 rounded-[3rem] soft-shadow border border-slate-100">
-                                <h2 className="text-2xl font-black mb-6 uppercase italic text-slate-800">Menu & Milks</h2>
-                                <p className="text-xs text-slate-400 mb-6 font-bold">Use this panel to manage availability and add new items.</p>
+                                <h2 className="text-2xl font-black mb-6 uppercase italic text-slate-800">Menu Management</h2>
                                 {menuDrinks.map((d, i) => (
-                                    <div key={i} className="flex items-center gap-3 mb-4 p-4 bg-slate-50 rounded-2xl">
-                                        <input className="flex-1 bg-transparent font-black uppercase text-sm" value={d.name} onChange={(e) => { const n = [...menuDrinks]; n[i].name = e.target.value; db.ref('menu').set(n); }} />
-                                        <button onClick={() => { const n = [...menuDrinks]; n[i].soldOut = !d.soldOut; db.ref('menu').set(n); }} className={`px-4 py-2 rounded-xl font-black text-[10px] ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{d.soldOut ? 'OUT' : 'IN'}</button>
+                                    <div key={i} className="mb-6 p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 space-y-4">
+                                        <div className="flex gap-3 items-center">
+                                            <input className="flex-1 bg-white p-4 rounded-2xl font-black uppercase text-sm border soft-shadow" placeholder="Drink Name" value={d.name} onChange={(e) => { const n = [...menuDrinks]; n[i].name = e.target.value; db.ref('menu').set(n); }} />
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
+                                                <input type="number" step="0.01" className="w-24 p-4 pl-7 bg-white rounded-2xl font-bold border soft-shadow" value={d.price} onChange={(e) => { const n = [...menuDrinks]; n[i].price = e.target.value; db.ref('menu').set(n); }} />
+                                            </div>
+                                            <button onClick={() => { if(confirm('Remove Drink?')) { const n = menuDrinks.filter((_, idx) => idx !== i); db.ref('menu').set(n); }}} className="text-red-400 font-black px-2 text-xl">✕</button>
+                                        </div>
+                                        <input className="w-full bg-white p-3 rounded-xl text-[10px] font-mono border" placeholder="Image URL (Direct link)" value={d.image || ''} onChange={(e) => { const n = [...menuDrinks]; n[i].image = e.target.value; db.ref('menu').set(n); }} />
+                                        <button onClick={() => { const n = [...menuDrinks]; n[i].soldOut = !d.soldOut; db.ref('menu').set(n); }} className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{d.soldOut ? 'SOLD OUT' : 'AVAILABLE'}</button>
                                     </div>
                                 ))}
+                                <button onClick={() => db.ref('menu').set([...menuDrinks, {name:"New Drink", price:5, image:"", soldOut:false}])} className="w-full bg-white border-2 border-dashed border-slate-200 p-6 rounded-3xl font-black text-xs uppercase text-slate-400 tracking-widest hover:border-slate-400 transition-colors">+ Add New Drink</button>
                             </div>
-                            <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-8 rounded-[3rem] font-black uppercase text-xl shadow-2xl italic tracking-tighter">Launch Kiosk</button>
+
+                            {/* MILK MANAGEMENT SECTION */}
+                            <div className="bg-white p-8 rounded-[3rem] soft-shadow border border-slate-100">
+                                <h2 className="text-2xl font-black mb-6 uppercase italic text-slate-800">Milk Options</h2>
+                                {milks.map((m, i) => (
+                                    <div key={i} className="flex items-center gap-3 mb-4 p-4 bg-slate-50 rounded-[2rem] border border-slate-100">
+                                        <input className="flex-1 bg-transparent font-black uppercase text-sm px-2" value={m.name} onChange={(e) => { const n = [...milks]; n[i].name = e.target.value; db.ref('milks').set(n); }} />
+                                        <button onClick={() => { const n = [...milks]; n[i].soldOut = !m.soldOut; db.ref('milks').set(n); }} className={`px-4 py-2 rounded-xl font-black text-[10px] ${m.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{m.soldOut ? 'OUT' : 'IN'}</button>
+                                        <button onClick={() => { if(confirm('Remove Milk?')) { const n = milks.filter((_, idx) => idx !== i); db.ref('milks').set(n); }}} className="text-red-300 px-2 font-black">✕</button>
+                                    </div>
+                                ))}
+                                <button onClick={() => db.ref('milks').set([...milks, {name:"New Milk", soldOut:false}])} className="w-full bg-white border-2 border-dashed border-slate-200 p-4 rounded-2xl font-black text-xs uppercase text-slate-400 tracking-widest hover:border-slate-400 transition-colors">+ Add Milk Type</button>
+                            </div>
+                            
+                            <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-8 rounded-[3rem] font-black uppercase text-xl shadow-2xl italic tracking-tighter active:scale-95 transition-transform">Launch Kiosk Mode</button>
                         </div>
                     )}
 
@@ -260,7 +301,7 @@
                                         </div>
                                     )}
                                 </div>
-                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] mt-12">Go Back</button>
+                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] mt-12 hover:text-slate-900 transition-colors">Go Back</button>
                             </div>
                         </div>
                     )}
