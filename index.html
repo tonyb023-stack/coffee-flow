@@ -7,7 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com-react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -145,17 +145,24 @@
                 const activeOrders = history.filter(o => o.completedAt > shiftStatus.startTime);
                 const revenue = activeOrders.reduce((acc, o) => acc + Number(o.price), 0);
                 
-                const counts = {};
+                const drinkCounts = {};
+                const hourCounts = {};
                 let totalWait = 0;
+                
                 activeOrders.forEach(o => {
-                    counts[o.flavor] = (counts[o.flavor] || 0) + 1;
+                    drinkCounts[o.flavor] = (drinkCounts[o.flavor] || 0) + 1;
                     totalWait += (o.waitTime || 0);
+                    const hour = new Date(o.completedAt).getHours();
+                    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
                 });
                 
-                const topDrink = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, "N/A");
+                const topDrink = Object.keys(drinkCounts).reduce((a, b) => drinkCounts[a] > drinkCounts[b] ? a : b, "N/A");
                 const avgWait = activeOrders.length > 0 ? (totalWait / activeOrders.length).toFixed(1) : 0;
                 
-                return { revenue, topDrink, count: activeOrders.length, avgWait };
+                const busiestHourRaw = Object.keys(hourCounts).reduce((a, b) => hourCounts[a] > hourCounts[b] ? a : b, null);
+                const busiestHour = busiestHourRaw !== null ? `${busiestHourRaw % 12 || 12}${busiestHourRaw >= 12 ? 'PM' : 'AM'}` : "N/A";
+                
+                return { revenue, topDrink, count: activeOrders.length, avgWait, busiestHour };
             }, [history, shiftStatus]);
 
             return (
@@ -222,18 +229,22 @@
                                             <h2 className="text-slate-400 font-black uppercase tracking-widest text-xs mb-4">Shift Revenue</h2>
                                             <p className="text-8xl font-black italic tracking-tighter text-slate-900">${shiftStats.revenue.toFixed(2)}</p>
                                         </div>
-                                        <div className="grid grid-cols-3 gap-2 py-8">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-8">
                                             <div className="text-center">
                                                 <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest mb-1">Top Drink</p>
                                                 <p className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">{shiftStats.topDrink}</p>
                                             </div>
-                                            <div className="text-center border-x border-slate-50 px-2">
+                                            <div className="text-center">
                                                 <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest mb-1">Total Served</p>
                                                 <p className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">{shiftStats.count}</p>
                                             </div>
                                             <div className="text-center">
                                                 <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest mb-1">Avg Wait</p>
                                                 <p className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">{shiftStats.avgWait}m</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest mb-1">Peak Hour</p>
+                                                <p className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">{shiftStats.busiestHour}</p>
                                             </div>
                                         </div>
                                         <button onClick={exportCSV} className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] pt-8 w-full hover:text-slate-900 transition-colors">Export CSV Report</button>
