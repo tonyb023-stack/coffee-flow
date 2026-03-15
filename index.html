@@ -125,9 +125,11 @@
                         <div className="animate-in pt-16 pb-24 text-center">
                             <div id="exit-zone" onClick={handleExitLogic}></div>
                             <h1 className="text-8xl font-black text-slate-900 tight-tracking uppercase italic leading-none mb-20">NEBULOUS</h1>
-                            <div className="max-w-lg mx-auto mb-20">
-                                {/* UPDATED: More prominent Name for Order Input */}
-                                <input type="text" placeholder="NAME FOR ORDER" className="w-full bg-transparent border-b-[8px] border-slate-900 p-4 text-5xl font-black uppercase text-center outline-none focus:scale-[1.02] transition-all placeholder:text-slate-200 text-slate-900" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                            <div className="max-w-xl mx-auto mb-20">
+                                {/* UPDATED: Input placed inside a clean border box */}
+                                <div className="bg-white p-6 rounded-[2.5rem] card-shadow border border-slate-100">
+                                    <input type="text" placeholder="WHO IS THIS FOR?" className="w-full bg-transparent p-4 text-4xl font-black uppercase text-center outline-none focus:scale-[1.02] transition-all placeholder:text-slate-200 text-slate-900" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                                </div>
                             </div>
                             <div className="grid grid-cols-1 gap-14">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
@@ -152,7 +154,6 @@
                             <div className="max-w-xl w-full animate-in text-center py-16">
                                 <div className="mb-14">
                                     <p className="text-3xl font-black uppercase wide-tracking text-slate-500 mb-6">{pendingOrder.temp}</p>
-                                    {/* UPDATED: Decreased Drink Title font size */}
                                     <h2 className="text-7xl font-black uppercase italic text-slate-900 leading-tight tight-tracking mb-2">{pendingOrder.name}</h2>
                                     <div className="h-2 w-24 bg-slate-900 mx-auto rounded-full mt-6"></div>
                                 </div>
