@@ -75,26 +75,41 @@
                     ? history.filter(o => o.completedAt > (shiftStatus.startTime || 0))
                     : [];
                 const revenue = shiftOrders.reduce((sum, o) => sum + (Number(o.price) || 0), 0);
-                
-                // Calculate Top Drink
                 const counts = shiftOrders.reduce((acc, o) => {
                     acc[o.flavor] = (acc[o.flavor] || 0) + 1;
                     return acc;
                 }, {});
                 const topDrink = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, "None");
-
                 return { orders: shiftOrders, revenue, count: shiftOrders.length, topDrink };
             }, [history, shiftStatus]);
 
             const exportToCSV = (data, filename) => {
-                const headers = ["Customer", "Drink", "Temp", "Milk", "Price", "Note"];
-                const rows = data.map(o => [o.customer, o.flavor, o.temp, o.milk, o.price, o.note || ""]);
+                const headers = ["Date", "Customer", "Drink", "Temp", "Milk", "Price", "Note"];
+                const rows = data.map(o => [
+                    new Date(o.completedAt).toLocaleDateString(),
+                    o.customer, o.flavor, o.temp, o.milk, o.price, o.note || ""
+                ]);
                 const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
                 const blob = new Blob([csvContent], { type: 'text/csv' });
                 const link = document.createElement("a");
                 link.href = URL.createObjectURL(blob);
                 link.download = `${filename}.csv`;
                 link.click();
+            };
+
+            const exportByTimeframe = (type) => {
+                const now = new Date();
+                let startTime;
+
+                if (type === 'week') {
+                    const day = now.getDay();
+                    startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day).getTime();
+                } else if (type === 'month') {
+                    startTime = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+                }
+
+                const filtered = history.filter(o => o.completedAt >= startTime);
+                exportToCSV(filtered, `Nebulous_${type}_Report`);
             };
 
             const markDone = (order) => {
@@ -201,9 +216,11 @@
                                 <div className="bg-white p-8 rounded-[2rem] text-center"><p className="text-xs font-black text-slate-300 uppercase">Drinks</p><p className="text-4xl font-black">{shiftData.count}</p></div>
                                 <div className="col-span-2 bg-slate-900 p-8 rounded-[2rem] text-center text-white"><p className="text-xs font-black text-slate-500 uppercase">Top Drink</p><p className="text-2xl font-black italic uppercase">{shiftData.topDrink}</p></div>
                             </div>
-                            <div className="grid grid-cols-1 gap-2">
-                                <button onClick={() => exportToCSV(shiftData.orders, "Nebulous_Shift_Data")} className="w-full bg-blue-500 text-white p-4 rounded-2xl font-black uppercase text-xs tracking-widest">Export Current Shift</button>
-                                <button onClick={() => exportToCSV(history, "Nebulous_All_Time_History")} className="w-full bg-slate-200 text-slate-500 p-4 rounded-2xl font-black uppercase text-xs tracking-widest">Export Full History</button>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button onClick={() => exportToCSV(shiftData.orders, "Nebulous_Shift_Report")} className="bg-blue-600 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Shift CSV</button>
+                                <button onClick={() => exportByTimeframe('week')} className="bg-blue-500 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Week CSV</button>
+                                <button onClick={() => exportByTimeframe('month')} className="bg-blue-400 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Month CSV</button>
+                                <button onClick={() => exportToCSV(history, "Nebulous_All_Time")} className="bg-slate-200 text-slate-500 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Full CSV</button>
                             </div>
                         </div>
                     )}
@@ -220,7 +237,10 @@
                                                 <input type="number" step="0.01" className="w-20 p-3 bg-white rounded-xl font-bold outline-none" value={d.price} onChange={(e) => { const n = [...menuDrinks]; n[i].price = e.target.value; db.ref('menu').set(n); }} />
                                             </div>
                                             <input placeholder="Image URL" className="w-full bg-white p-3 rounded-xl text-xs font-mono outline-none" value={d.image || ''} onChange={(e) => { const n = [...menuDrinks]; n[i].image = e.target.value; db.ref('menu').set(n); }} />
-                                            <button onClick={() => { const n = [...menuDrinks]; n[i].soldOut = !n[i].soldOut; db.ref('menu').set(n); }} className={`w-full py-2 rounded-xl font-black text-[10px] uppercase ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{d.soldOut ? 'SOLD OUT' : 'IN STOCK'}</button>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => { const n = [...menuDrinks]; n[i].soldOut = !n[i].soldOut; db.ref('menu').set(n); }} className={`flex-1 py-2 rounded-xl font-black text-[10px] uppercase ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{d.soldOut ? 'SOLD OUT' : 'IN STOCK'}</button>
+                                                <button onClick={() => { if(confirm('Delete?')) { const n = menuDrinks.filter((_, idx) => idx !== i); db.ref('menu').set(n); }}} className="px-4 py-2 bg-red-100 text-red-600 rounded-xl font-black text-[10px]">✕</button>
+                                            </div>
                                         </div>
                                     ))}
                                     <button onClick={() => db.ref('menu').set([...menuDrinks, {name: "New Drink", price: 5, soldOut: false, image: ""}])} className="w-full bg-slate-100 p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Item</button>
@@ -233,6 +253,7 @@
                                         <div key={i} className="flex items-center gap-3 p-2 bg-slate-50 rounded-2xl">
                                             <input className="flex-1 bg-transparent p-3 font-black text-slate-700 uppercase outline-none" value={m.name} onChange={(e) => { const n = [...milks]; n[i].name = e.target.value; db.ref('milks').set(n); }} />
                                             <button onClick={() => { const n = [...milks]; n[i].soldOut = !m.soldOut; db.ref('milks').set(n); }} className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase ${m.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{m.soldOut ? 'OUT' : 'IN'}</button>
+                                            <button onClick={() => { if(confirm('Delete?')) { const n = milks.filter((_, idx) => idx !== i); db.ref('milks').set(n); }}} className="text-red-300 px-2 font-black">✕</button>
                                         </div>
                                     ))}
                                     <button onClick={() => db.ref('milks').set([...milks, {name: "New Milk", soldOut: false}])} className="w-full bg-slate-100 p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Milk Option</button>
