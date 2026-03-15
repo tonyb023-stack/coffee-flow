@@ -290,7 +290,8 @@
                                     <div className="space-y-8">
                                         <div className="bg-slate-50 p-6 rounded-[2.5rem] border-2 border-slate-100">
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Special Requests?</p>
-                                            <input type="text" placeholder="EG: EXTRA SHOT, NO ICE..." className="w-full bg-white p-6 rounded-2xl text-xl font-black uppercase border shadow-sm outline-none text-center" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
+                                            {/* UPDATED: Updated placeholder text */}
+                                            <input type="text" placeholder="EG: ICE LEVEL, SWEETNESS LEVEL..." className="w-full bg-white p-6 rounded-2xl text-xl font-black uppercase border shadow-sm outline-none text-center" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
                                         </div>
                                         <div className="space-y-4 pt-4">
                                             <p className="text-2xl font-black uppercase text-slate-900 tracking-tight italic">Total: ${Number(pendingOrder.price).toFixed(2)}</p>
