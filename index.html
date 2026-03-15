@@ -186,7 +186,7 @@
                             {orders.map(order => (
                                 <div key={order.id} className={`flex justify-between items-center p-8 rounded-[3rem] bg-white shadow-lg border-l-[16px] ${order.temp === 'Hot' ? 'border-red-500' : 'border-blue-500'}`}>
                                     <div><h2 className="text-3xl font-black text-slate-800">{order.customer}</h2><p className="text-slate-400 font-bold uppercase">{order.temp} {order.flavor} • {order.milk}</p></div>
-                                    <button onClick={() => markDone(order)} className="bg-emerald-500 text-white w-20 h-20 rounded-3xl text-4xl font-black">✓</button>
+                                    <button onClick={() => markDone(order)} className="bg-emerald-500 text-white w-20 h-20 rounded-3xl text-4xl font-black shadow-lg active:scale-95 transition-all">✓</button>
                                 </div>
                             ))}
                         </div>
@@ -263,27 +263,21 @@
                                 </div>
                                 <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full p-5 bg-slate-50 rounded-3xl mb-12 font-bold uppercase text-center outline-none border-2 border-transparent focus:border-slate-200 transition-all" value={note} onChange={(e) => setNote(e.target.value)} />
                                 
-                                <div className="text-center mb-4">
-                                    <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-300">Select Milk Choice</p>
+                                <div className="text-center mb-6">
+                                    {/* Select Milk Choice text made larger */}
+                                    <p className="text-lg font-black uppercase tracking-[0.2em] text-slate-400">Select Milk Choice</p>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-3 mb-10">
+                                <div className="grid grid-cols-1 gap-3 mb-12">
                                     {milks.filter(m => !m.soldOut).map(m => (
-                                        <button 
-                                            key={m.name} 
-                                            onClick={() => setSelectedMilk(m.name)} 
-                                            className={`border-2 p-6 rounded-[2rem] text-xl font-black uppercase italic active:scale-95 transition-all shadow-sm ${selectedMilk === m.name ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-900 hover:border-slate-900'}`}
-                                        >
-                                            {m.name}
-                                        </button>
+                                        <button key={m.name} onClick={() => finalizeOrder(m.name)} className="bg-white border-2 border-slate-100 p-6 rounded-[2rem] text-xl font-black uppercase italic hover:border-slate-900 active:scale-95 transition-all shadow-sm">{m.name}</button>
                                     ))}
                                 </div>
 
-                                {selectedMilk ? (
-                                    <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-6 rounded-[2rem] font-black uppercase text-xl tracking-[0.1em] shadow-lg animate-in active:scale-95 transition-all mb-4">Confirm Order</button>
-                                ) : null}
-
-                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); }} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-lg active:scale-95 transition-all">Go Back</button>
+                                {/* Go Back button moved down with more margin */}
+                                <div className="mt-16">
+                                    <button onClick={() => setPendingOrder(null)} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-lg active:scale-95 transition-all">Go Back</button>
+                                </div>
                             </div>
                         </div>
                     )}
