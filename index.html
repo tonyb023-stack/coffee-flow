@@ -15,14 +15,14 @@
         @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         * { -webkit-user-select: none; touch-action: manipulation; }
         input { -webkit-user-select: text; }
-        .hidden-trigger { position: fixed; top: 0; right: 0; width: 60px; height: 60px; z-index: 999; }
+        .hidden-trigger { position: fixed; top: 0; right: 0; width: 80px; height: 80px; z-index: 999; }
     </style>
 </head>
 <body class="bg-slate-50">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
         const firebaseConfig = {
             apiKey: "AIzaSyDDDp160eqcOLhW90xoSd9xxHQuJr8k7sA",
@@ -43,6 +43,7 @@
             const [orders, setOrders] = useState([]);
             const [menuDrinks, setMenuDrinks] = useState([]);
             const [milks, setMilks] = useState([]);
+            const [history, setHistory] = useState([]);
             const [customerName, setCustomerName] = useState('');
             const [pendingOrder, setPendingOrder] = useState(null);
             const [showSuccess, setShowSuccess] = useState(false);
@@ -55,7 +56,29 @@
                 });
                 db.ref('menu').on('value', snap => setMenuDrinks(snap.val() || []));
                 db.ref('milks').on('value', snap => setMilks(snap.val() || []));
+                db.ref('history').on('value', snap => {
+                    const data = snap.val() || {};
+                    setHistory(Object.values(data));
+                });
             }, []);
+
+            // Dashboard Calculations
+            const stats = useMemo(() => {
+                const today = new Date().setHours(0,0,0,0);
+                const todaysOrders = history.filter(o => o.startTime > today);
+                const totalRevenue = todaysOrders.reduce((sum, o) => sum + (Number(o.price) || 0), 0);
+                const drinkCounts = todaysOrders.reduce((acc, o) => {
+                    acc[o.flavor] = (acc[o.flavor] || 0) + 1;
+                    return acc;
+                }, {});
+                const topDrink = Object.entries(drinkCounts).sort((a,b) => b[1] - a[1])[0];
+
+                return {
+                    count: todaysOrders.length,
+                    revenue: totalRevenue,
+                    popular: topDrink ? topDrink[0] : 'N/A'
+                };
+            }, [history]);
 
             const addOrder = (drink, temp) => {
                 if (!customerName.trim()) return alert("Please enter your name first!");
@@ -71,8 +94,7 @@
                     temp: pendingOrder.temp,
                     milk: milk,
                     startTime: Date.now(),
-                    status: 'Active',
-                    timeLabel: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    status: 'Active'
                 };
                 db.ref('orders/' + newOrder.id).set(newOrder);
                 setPendingOrder(null);
@@ -82,7 +104,7 @@
             };
 
             const markDone = (order) => {
-                db.ref('history/' + order.id).set({ ...order, waitTime: Math.floor((Date.now() - order.startTime) / 1000), status: 'Sold' });
+                db.ref('history/' + order.id).set({ ...order, status: 'Completed', completedAt: Date.now() });
                 db.ref('orders/' + order.id).remove();
             };
 
@@ -102,7 +124,7 @@
             if (showSuccess) return (
                 <div className="flex flex-col items-center justify-center h-screen bg-orange-500 text-white animate-in">
                     <h1 className="text-7xl font-black mb-4 uppercase italic">Order Sent!</h1>
-                    <p className="text-2xl font-bold opacity-90 uppercase tracking-[0.2em]">Thanks, {customerName}!</p>
+                    <p className="text-2xl font-bold opacity-90">Coming right up!</p>
                 </div>
             );
 
@@ -120,14 +142,13 @@
                         </nav>
                     )}
 
-                    {/* KIOSK FACE: Just the ordering system */}
                     {appMode === 'kiosk' && (
                         <div className="animate-in pt-10">
                             <h1 className="text-4xl text-center mb-10 font-black text-slate-800 uppercase italic tracking-tighter">Anu Day Coffee</h1>
                             <input type="text" placeholder="Enter Your Name..." className="w-full p-8 text-4xl rounded-[3rem] shadow-xl mb-10 border-none bg-white outline-none focus:ring-4 focus:ring-orange-200" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                {menuDrinks.map((drink) => (
+                                {menuDrinks.filter(d => !d.soldOut).map((drink) => (
                                     <div key={drink.name} className="bg-white p-8 rounded-[4rem] shadow-md border border-slate-100 flex flex-col items-center">
                                         <h3 className="text-3xl font-black text-slate-700 mb-6 uppercase tracking-tight">{drink.name}</h3>
                                         <div className="flex gap-4 w-full">
@@ -140,39 +161,74 @@
                         </div>
                     )}
 
-                    {/* BARISTA FACE: Just the queue management */}
                     {appMode === 'barista' && view === 'queue' && (
                         <div className="animate-in space-y-6">
-                            <div className="flex justify-between items-center px-4">
-                                <h2 className="text-2xl font-black text-slate-300 uppercase italic tracking-widest">Incoming Orders</h2>
-                                <span className="bg-orange-500 text-white px-4 py-1 rounded-full font-black text-sm">{orders.length} ACTIVE</span>
-                            </div>
-                            <div className="space-y-4">
-                                {orders.length === 0 ? (
-                                    <div className="text-center py-20 text-slate-300 font-bold uppercase tracking-widest">No active orders</div>
-                                ) : (
-                                    orders.map(order => (
-                                        <div key={order.id} className="flex justify-between items-center p-8 rounded-[3.5rem] bg-white shadow-xl border-l-[20px] border-orange-500 animate-in">
-                                            <div className="flex-1">
-                                                <h2 className="text-4xl font-black text-slate-800">{order.customer}</h2>
-                                                <p className="text-slate-500 font-extrabold text-lg uppercase">{order.temp} {order.flavor} • {order.milk}</p>
-                                            </div>
-                                            <button onClick={() => markDone(order)} className="bg-emerald-500 text-white w-24 h-24 rounded-[2.5rem] font-black text-5xl flex items-center justify-center shadow-lg active:scale-90 transition">✓</button>
-                                        </div>
-                                    ))
-                                )}
+                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Live Orders</h2>
+                            {orders.map(order => (
+                                <div key={order.id} className="flex justify-between items-center p-8 rounded-[3.5rem] bg-white shadow-xl border-l-[20px] border-orange-500 animate-in">
+                                    <div className="flex-1">
+                                        <h2 className="text-4xl font-black text-slate-800">{order.customer}</h2>
+                                        <p className="text-slate-500 font-extrabold text-lg uppercase">{order.temp} {order.flavor} • {order.milk}</p>
+                                    </div>
+                                    <button onClick={() => markDone(order)} className="bg-emerald-500 text-white w-24 h-24 rounded-[2.5rem] font-black text-5xl flex items-center justify-center shadow-lg active:scale-90 transition">✓</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {view === 'stats' && appMode === 'barista' && (
+                        <div className="animate-in space-y-6">
+                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Today's Dashboard</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="bg-white p-8 rounded-[3rem] shadow-sm text-center">
+                                    <p className="text-slate-400 font-black uppercase text-xs mb-2">Total Drinks</p>
+                                    <p className="text-5xl font-black text-slate-800">{stats.count}</p>
+                                </div>
+                                <div className="bg-orange-500 p-8 rounded-[3rem] shadow-lg text-center text-white">
+                                    <p className="opacity-70 font-black uppercase text-xs mb-2">Estimated Revenue</p>
+                                    <p className="text-5xl font-black">${stats.revenue.toFixed(2)}</p>
+                                </div>
+                                <div className="bg-white p-8 rounded-[3rem] shadow-sm text-center">
+                                    <p className="text-slate-400 font-black uppercase text-xs mb-2">Most Popular</p>
+                                    <p className="text-2xl font-black text-slate-800 uppercase">{stats.popular}</p>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Settings & Other Views (Unchanged for Barista Mode) */}
                     {view === 'settings' && appMode === 'barista' && (
                         <div className="animate-in space-y-8">
-                            <div className="bg-slate-800 text-white p-10 rounded-[3rem] shadow-xl">
-                                <h2 className="text-xl font-black uppercase mb-4 tracking-widest">Device Assignment</h2>
+                            <div className="bg-slate-800 text-white p-10 rounded-[3rem]">
+                                <h2 className="text-xl font-black uppercase mb-4 text-slate-400">Device Mode</h2>
                                 <div className="flex gap-4">
-                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="flex-1 p-5 rounded-2xl font-black uppercase text-xs bg-slate-700">Set as Kiosk</button>
-                                    <button onClick={() => { setAppMode('barista'); localStorage.setItem('app-mode', 'barista'); }} className="flex-1 p-5 rounded-2xl font-black uppercase text-xs bg-emerald-500">Set as Barista</button>
+                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="flex-1 p-5 rounded-2xl font-black uppercase text-xs bg-slate-700">Set Kiosk</button>
+                                    <button onClick={() => { setAppMode('barista'); localStorage.setItem('app-mode', 'barista'); }} className="flex-1 p-5 rounded-2xl font-black uppercase text-xs bg-emerald-500">Set Barista</button>
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-10 rounded-[3.5rem] shadow-md">
+                                <h2 className="text-2xl font-black mb-8 uppercase text-slate-800 tracking-tighter">Menu Management</h2>
+                                <div className="space-y-4">
+                                    {(menuDrinks || []).map((d, i) => (
+                                        <div key={i} className="flex items-center gap-3 p-2 bg-slate-50 rounded-3xl">
+                                            <input className="flex-1 bg-transparent p-4 font-black text-slate-700 uppercase outline-none" value={d.name} onChange={(e) => {
+                                                const n = [...menuDrinks]; n[i].name = e.target.value; db.ref('menu').set(n);
+                                            }} />
+                                            <input type="number" placeholder="$" className="w-20 bg-white p-4 rounded-xl font-bold" value={d.price} onChange={(e) => {
+                                                const n = [...menuDrinks]; n[i].price = e.target.value; db.ref('menu').set(n);
+                                            }} />
+                                            <button onClick={() => {
+                                                const n = [...menuDrinks]; n[i].soldOut = !n[i].soldOut; db.ref('menu').set(n);
+                                            }} className={`px-4 py-4 rounded-2xl font-black text-[10px] uppercase ${d.soldOut ? 'bg-red-500 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                {d.soldOut ? 'SOLD OUT' : 'ACTIVE'}
+                                            </button>
+                                            <button onClick={() => {if(confirm("Delete?")){const n = [...menuDrinks]; n.splice(i,1); db.ref('menu').set(n);}}} className="p-4 text-slate-300 font-bold text-xl">✕</button>
+                                        </div>
+                                    ))}
+                                    <button onClick={() => {
+                                        const n = prompt("Drink Name:");
+                                        if(n) db.ref('menu').set([...(menuDrinks || []), {name: n, price: 0, soldOut: false}]);
+                                    }} className="w-full bg-orange-500 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-lg shadow-orange-100 mt-4">+ Add New Drink</button>
                                 </div>
                             </div>
                         </div>
@@ -180,16 +236,16 @@
 
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 z-[100]">
-                            <div className="bg-white w-full max-w-lg rounded-[4rem] p-12 shadow-2xl animate-in text-center">
-                                <h2 className="text-4xl font-black mb-10 uppercase italic tracking-widest text-slate-300">Choose Milk</h2>
+                            <div className="bg-white w-full max-w-lg rounded-[4rem] p-12 text-center animate-in">
+                                <h2 className="text-4xl font-black mb-10 uppercase italic text-slate-300 tracking-widest">Choose Milk</h2>
                                 <div className="grid grid-cols-1 gap-4">
-                                    {milks.map(m => (
-                                        <button key={m} onClick={() => finalizeOrder(m)} className="bg-slate-50 hover:bg-orange-50 p-10 rounded-[3rem] text-4xl font-black border-2 border-slate-100 text-slate-800 active:scale-95 transition">
+                                    {(milks || []).map(m => (
+                                        <button key={m} onClick={() => finalizeOrder(m)} className="bg-slate-50 hover:bg-orange-50 p-10 rounded-[3rem] text-4xl font-black border-2 border-slate-100 active:scale-95 transition uppercase">
                                             {m}
                                         </button>
                                     ))}
                                 </div>
-                                <button onClick={() => setPendingOrder(null)} className="mt-10 font-black text-slate-300 uppercase tracking-widest text-sm">Cancel</button>
+                                <button onClick={() => setPendingOrder(null)} className="mt-10 font-black text-slate-300 uppercase text-sm">Cancel</button>
                             </div>
                         </div>
                     )}
