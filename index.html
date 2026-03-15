@@ -54,6 +54,7 @@
             const [pendingOrder, setPendingOrder] = useState(null);
             const [showSuccess, setShowSuccess] = useState(false);
             const [secretTaps, setSecretTaps] = useState(0);
+            const [note, setNote] = useState('');
 
             useEffect(() => {
                 db.ref('orders').on('value', snap => {
@@ -80,20 +81,22 @@
                 return { count: todaysOrders.length, revenue: totalRevenue, popular: topDrink ? topDrink[0] : 'N/A' };
             }, [history]);
 
-            const finalizeOrder = (milk) => {
+            const finalizeOrder = (milkName) => {
                 const newOrder = {
                     id: Date.now(),
                     customer: customerName,
                     flavor: pendingOrder.flavor,
                     price: pendingOrder.price || 0,
                     temp: pendingOrder.temp,
-                    milk: milk,
+                    milk: milkName,
+                    note: note,
                     startTime: Date.now(),
                     status: 'Active'
                 };
                 db.ref('orders/' + newOrder.id).set(newOrder);
                 setPendingOrder(null);
                 setCustomerName('');
+                setNote('');
                 setShowSuccess(true);
                 setTimeout(() => setShowSuccess(false), 3000);
             };
@@ -169,6 +172,7 @@
                                     <div className="flex-1">
                                         <h2 className="text-4xl font-black text-slate-800">{order.customer}</h2>
                                         <p className="text-slate-500 font-extrabold text-lg uppercase">{order.temp} {order.flavor} • {order.milk}</p>
+                                        {order.note && <p className="mt-2 text-orange-600 font-black uppercase italic text-sm">Note: {order.note}</p>}
                                     </div>
                                     <button onClick={() => markDone(order)} className="bg-emerald-500 text-white w-24 h-24 rounded-[2.5rem] font-black text-5xl flex items-center justify-center shadow-lg active:scale-90 transition">✓</button>
                                 </div>
@@ -186,7 +190,7 @@
                                 <div key={order.id} className="flex justify-between items-center p-6 rounded-[2.5rem] bg-white shadow-sm border border-slate-100 opacity-60">
                                     <div>
                                         <h3 className="text-xl font-black text-slate-800">{order.customer}</h3>
-                                        <p className="text-slate-400 font-bold text-xs uppercase">{order.temp} {order.flavor} • {new Date(order.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                        <p className="text-slate-400 font-bold text-xs uppercase">{order.temp} {order.flavor} {order.note ? `[${order.note}]` : ''} • {new Date(order.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                                     </div>
                                     <span className="font-black text-slate-300">${Number(order.price || 0).toFixed(2)}</span>
                                 </div>
@@ -216,7 +220,6 @@
 
                     {view === 'settings' && appMode === 'barista' && (
                         <div className="animate-in space-y-8">
-                            {/* MENU MANAGEMENT */}
                             <div className="bg-white p-10 rounded-[3.5rem] shadow-md">
                                 <h2 className="text-2xl font-black mb-8 uppercase text-slate-800 tracking-tighter">Menu Management</h2>
                                 <div className="space-y-4">
@@ -233,7 +236,7 @@
                                             </div>
                                             <button onClick={() => {
                                                 const n = [...menuDrinks]; n[i].soldOut = !n[i].soldOut; db.ref('menu').set(n);
-                                            }} className={`px-4 py-4 rounded-2xl font-black text-[10px] uppercase ${d.soldOut ? 'bg-red-500 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+                                            }} className={`px-4 py-4 rounded-2xl font-black text-[10px] uppercase ${d.soldOut ? 'bg-red-500 text-white shadow-md' : 'bg-emerald-100 text-emerald-700'}`}>
                                                 {d.soldOut ? 'SOLD OUT' : 'ACTIVE'}
                                             </button>
                                         </div>
@@ -245,19 +248,23 @@
                                 </div>
                             </div>
 
-                            {/* RESTORED MILK OPTIONS */}
                             <div className="bg-white p-10 rounded-[3.5rem] shadow-md border border-slate-100">
                                 <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter text-slate-800">Milk Options</h2>
                                 <div className="space-y-4">
                                     {(milks || []).map((m, i) => (
-                                        <div key={i} className="flex gap-2 animate-in">
-                                            <div className="flex-1 bg-slate-50 p-4 rounded-2xl font-black text-slate-700 uppercase italic">{m}</div>
-                                            <button onClick={() => {if(confirm("Delete milk?")){const n = [...milks]; n.splice(i,1); db.ref('milks').set(n);}}} className="bg-red-50 text-red-500 px-6 rounded-2xl font-bold">✕</button>
+                                        <div key={i} className="flex items-center gap-3 p-2 bg-slate-50 rounded-3xl animate-in">
+                                            <div className="flex-1 p-4 font-black text-slate-700 uppercase italic">{m.name}</div>
+                                            <button onClick={() => {
+                                                const n = [...milks]; n[i].soldOut = !m.soldOut; db.ref('milks').set(n);
+                                            }} className={`px-4 py-4 rounded-2xl font-black text-[10px] uppercase ${m.soldOut ? 'bg-red-500 text-white shadow-md' : 'bg-slate-200 text-slate-600'}`}>
+                                                {m.soldOut ? 'OUT' : 'IN STOCK'}
+                                            </button>
+                                            <button onClick={() => {if(confirm("Delete?")){const n = [...milks]; n.splice(i,1); db.ref('milks').set(n);}}} className="p-4 text-slate-300">✕</button>
                                         </div>
                                     ))}
                                     <button onClick={() => {
                                         const m = prompt("Enter Milk Type:");
-                                        if(m) db.ref('milks').set([...(milks || []), m]);
+                                        if(m) db.ref('milks').set([...(milks || []), {name: m, soldOut: false}]);
                                     }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest">
                                         + Add Milk Type
                                     </button>
@@ -276,24 +283,29 @@
 
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 z-[100]">
-                            <div className={`bg-white w-full max-w-lg rounded-[4rem] p-10 text-center animate-in shadow-2xl border-l-[30px] ${getOrderColor(pendingOrder.temp)}`}>
-                                <div className="mb-6">
+                            <div className={`bg-white w-full max-w-lg rounded-[4rem] p-10 text-center animate-in shadow-2xl border-l-[30px] ${getOrderColor(pendingOrder.temp)} overflow-y-auto max-h-[90vh]`}>
+                                <div className="mb-4">
                                     <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Nebulous Coffee</p>
                                     <h2 className="text-3xl font-black text-slate-800 uppercase italic">{pendingOrder.customer}</h2>
                                 </div>
-                                <div className="bg-slate-50 p-6 rounded-[2.5rem] mb-10 border border-slate-100">
-                                    <p className="text-xl font-black text-slate-600 uppercase tracking-tighter">{pendingOrder.temp} {pendingOrder.flavor}</p>
-                                    <p className="text-4xl font-black text-orange-500 mt-2">${Number(pendingOrder.price || 0).toFixed(2)}</p>
+                                
+                                <div className="bg-slate-50 p-4 rounded-[2rem] mb-6 border border-slate-100">
+                                    <p className="text-lg font-black text-slate-600 uppercase tracking-tighter">{pendingOrder.temp} {pendingOrder.flavor}</p>
+                                    <p className="text-2xl font-black text-orange-500 mt-1">${Number(pendingOrder.price || 0).toFixed(2)}</p>
                                 </div>
-                                <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-6">Choose Your Milk</h3>
-                                <div className="grid grid-cols-1 gap-4">
-                                    {(milks && milks.length > 0 ? milks : ['Whole', 'Oat', 'Almond']).map(m => (
-                                        <button key={m} onClick={() => finalizeOrder(m)} className="bg-white hover:bg-slate-50 p-8 rounded-[2.5rem] text-3xl font-black border-2 border-slate-100 text-slate-800 active:scale-95 transition uppercase">
-                                            {m}
+
+                                <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-4 italic">Any Special Requests?</h3>
+                                <input type="text" placeholder="EXTRA SWEET, LIGHT ICE..." className="w-full p-4 bg-slate-100 rounded-2xl mb-6 font-bold uppercase text-center outline-none focus:ring-2 focus:ring-slate-300" value={note} onChange={(e) => setNote(e.target.value)} />
+
+                                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Choose Your Milk</h3>
+                                <div className="grid grid-cols-1 gap-3">
+                                    {(milks || []).filter(m => !m.soldOut).map(m => (
+                                        <button key={m.name} onClick={() => finalizeOrder(m.name)} className="bg-white hover:bg-slate-50 p-6 rounded-[2rem] text-2xl font-black border-2 border-slate-100 text-slate-800 active:scale-95 transition uppercase italic">
+                                            {m.name}
                                         </button>
                                     ))}
                                 </div>
-                                <button onClick={() => setPendingOrder(null)} className="mt-8 font-black text-slate-300 uppercase text-xs tracking-widest">Wait, Go Back</button>
+                                <button onClick={() => {setPendingOrder(null); setNote('');}} className="mt-6 font-black text-slate-300 uppercase text-xs tracking-widest">Go Back</button>
                             </div>
                         </div>
                     )}
