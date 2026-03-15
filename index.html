@@ -15,6 +15,15 @@
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         .animate-in { animation: slideIn 0.3s ease-out forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
         .kiosk-card { background: white; border-radius: 2.5rem; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
         .hot-btn { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
         .iced-btn { background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%); }
@@ -63,6 +72,7 @@
             const [selectedMilk, setSelectedMilk] = useState(null);
             const [showSuccess, setShowSuccess] = useState(false);
             const [note, setNote] = useState('');
+            const [shakeActive, setShakeActive] = useState(false);
 
             useEffect(() => {
                 db.ref('orders').on('value', snap => setOrders(Object.values(snap.val() || {}).sort((a,b) => b.id - a.id)));
@@ -77,40 +87,8 @@
                     ? history.filter(o => o.completedAt > (shiftStatus.startTime || 0))
                     : [];
                 const revenue = shiftOrders.reduce((sum, o) => sum + (Number(o.price) || 0), 0);
-                const counts = shiftOrders.reduce((acc, o) => {
-                    acc[o.flavor] = (acc[o.flavor] || 0) + 1;
-                    return acc;
-                }, {});
-                const topDrink = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, "None");
-                return { orders: shiftOrders, revenue, count: shiftOrders.length, topDrink };
+                return { orders: shiftOrders, revenue, count: shiftOrders.length };
             }, [history, shiftStatus]);
-
-            const exportToCSV = (data, filename) => {
-                const headers = ["Date", "Customer", "Drink", "Temp", "Milk", "Price", "Note"];
-                const rows = data.map(o => [
-                    new Date(o.completedAt).toLocaleDateString(),
-                    o.customer, o.flavor, o.temp, o.milk, o.price, o.note || ""
-                ]);
-                const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-                const blob = new Blob([csvContent], { type: 'text/csv' });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.download = `${filename}.csv`;
-                link.click();
-            };
-
-            const exportByTimeframe = (type) => {
-                const now = new Date();
-                let startTime;
-                if (type === 'week') {
-                    const day = now.getDay();
-                    startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day).getTime();
-                } else if (type === 'month') {
-                    startTime = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-                }
-                const filtered = history.filter(o => o.completedAt >= startTime);
-                exportToCSV(filtered, `Nebulous_${type}_Report`);
-            };
 
             const markDone = (order) => {
                 const completedAt = Date.now();
@@ -118,8 +96,16 @@
                 db.ref('orders/' + order.id).remove();
             };
 
+            const triggerShake = () => {
+                setShakeActive(true);
+                setTimeout(() => setShakeActive(false), 500);
+            };
+
             const finalizeOrder = () => {
-                if (!selectedMilk) return;
+                if (!selectedMilk) {
+                    triggerShake();
+                    return;
+                }
                 const newOrder = {
                     id: Date.now(), customer: customerName, flavor: pendingOrder.name,
                     price: pendingOrder.price || 0, temp: pendingOrder.temp, milk: selectedMilk,
@@ -163,7 +149,7 @@
                                 <div className="grid grid-cols-1 gap-8">
                                     {menuDrinks.filter(d => !d.soldOut).map((drink) => (
                                         <div key={drink.name} className="kiosk-card">
-                                            {drink.image ? <img src={drink.image} className="drink-img" /> : <div className="nebulous-placeholder"><span className="text-white/20 font-black italic">N</span></div>}
+                                            <div className="nebulous-placeholder"><span className="text-white/20 font-black italic">N</span></div>
                                             <div className="p-8">
                                                 <div className="flex justify-between items-baseline mb-8">
                                                     <h3 className="text-3xl font-black text-slate-800 uppercase italic tracking-tighter">{drink.name}</h3>
@@ -203,13 +189,6 @@
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-white p-8 rounded-[2rem] text-center"><p className="text-xs font-black text-slate-300 uppercase">Sales</p><p className="text-4xl font-black">${shiftData.revenue.toFixed(2)}</p></div>
                                 <div className="bg-white p-8 rounded-[2rem] text-center"><p className="text-xs font-black text-slate-300 uppercase">Drinks</p><p className="text-4xl font-black">{shiftData.count}</p></div>
-                                <div className="col-span-2 bg-slate-900 p-8 rounded-[2rem] text-center text-white"><p className="text-xs font-black text-slate-500 uppercase">Top Drink</p><p className="text-2xl font-black italic uppercase">{shiftData.topDrink}</p></div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button onClick={() => exportToCSV(shiftData.orders, "Nebulous_Shift_Report")} className="bg-blue-600 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Shift CSV</button>
-                                <button onClick={() => exportByTimeframe('week')} className="bg-blue-500 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Week CSV</button>
-                                <button onClick={() => exportByTimeframe('month')} className="bg-blue-400 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Month CSV</button>
-                                <button onClick={() => exportToCSV(history, "Nebulous_All_Time")} className="bg-slate-200 text-slate-500 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Full CSV</button>
                             </div>
                         </div>
                     )}
@@ -225,14 +204,13 @@
                                                 <input className="flex-1 bg-white p-3 rounded-xl font-black uppercase outline-none" value={d.name} onChange={(e) => { const n = [...menuDrinks]; n[i].name = e.target.value; db.ref('menu').set(n); }} />
                                                 <input type="number" step="0.01" className="w-20 p-3 bg-white rounded-xl font-bold outline-none" value={d.price} onChange={(e) => { const n = [...menuDrinks]; n[i].price = e.target.value; db.ref('menu').set(n); }} />
                                             </div>
-                                            <input placeholder="Image URL" className="w-full bg-white p-3 rounded-xl text-xs font-mono outline-none" value={d.image || ''} onChange={(e) => { const n = [...menuDrinks]; n[i].image = e.target.value; db.ref('menu').set(n); }} />
                                             <div className="flex gap-2">
                                                 <button onClick={() => { const n = [...menuDrinks]; n[i].soldOut = !n[i].soldOut; db.ref('menu').set(n); }} className={`flex-1 py-2 rounded-xl font-black text-[10px] uppercase ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{d.soldOut ? 'SOLD OUT' : 'IN STOCK'}</button>
                                                 <button onClick={() => { if(confirm('Delete?')) { const n = menuDrinks.filter((_, idx) => idx !== i); db.ref('menu').set(n); }}} className="px-4 py-2 bg-red-100 text-red-600 rounded-xl font-black text-[10px]">✕</button>
                                             </div>
                                         </div>
                                     ))}
-                                    <button onClick={() => db.ref('menu').set([...menuDrinks, {name: "New Drink", price: 5, soldOut: false, image: ""}])} className="w-full bg-slate-100 p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Item</button>
+                                    <button onClick={() => db.ref('menu').set([...menuDrinks, {name: "New Drink", price: 5, soldOut: false}])} className="w-full bg-slate-100 p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Item</button>
                                 </div>
                             </div>
                             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm">
@@ -242,7 +220,6 @@
                                         <div key={i} className="flex items-center gap-3 p-2 bg-slate-50 rounded-2xl">
                                             <input className="flex-1 bg-transparent p-3 font-black text-slate-700 uppercase outline-none" value={m.name} onChange={(e) => { const n = [...milks]; n[i].name = e.target.value; db.ref('milks').set(n); }} />
                                             <button onClick={() => { const n = [...milks]; n[i].soldOut = !m.soldOut; db.ref('milks').set(n); }} className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase ${m.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{m.soldOut ? 'OUT' : 'IN'}</button>
-                                            <button onClick={() => { if(confirm('Delete?')) { const n = milks.filter((_, idx) => idx !== i); db.ref('milks').set(n); }}} className="text-red-300 px-2 font-black">✕</button>
                                         </div>
                                     ))}
                                     <button onClick={() => db.ref('milks').set([...milks, {name: "New Milk", soldOut: false}])} className="w-full bg-slate-100 p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Milk Option</button>
@@ -253,8 +230,8 @@
                     )}
 
                     {pendingOrder && (
-                        <div className="fixed inset-0 bg-white/95 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
-                            <div className="max-w-md w-full animate-in">
+                        <div className="fixed inset-0 bg-white/95 backdrop-blur-xl z-[100] flex items-center justify-center p-6 overflow-y-auto">
+                            <div className="max-w-md w-full animate-in py-12">
                                 <div className="text-center mb-10">
                                     <h2 className="text-5xl font-black uppercase italic tracking-tighter leading-none mb-3">{pendingOrder.name}</h2>
                                     <p className={`text-xl font-black uppercase tracking-widest ${pendingOrder.temp === 'Hot' ? 'text-red-500' : 'text-blue-500'}`}>
@@ -263,20 +240,32 @@
                                 </div>
                                 <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full p-5 bg-slate-50 rounded-3xl mb-12 font-bold uppercase text-center outline-none border-2 border-transparent focus:border-slate-200 transition-all" value={note} onChange={(e) => setNote(e.target.value)} />
                                 
-                                <div className="text-center mb-6">
-                                    {/* Select Milk Choice text made larger */}
-                                    <p className="text-lg font-black uppercase tracking-[0.2em] text-slate-400">Select Milk Choice</p>
+                                <div className={`text-center mb-6 ${shakeActive ? 'shake' : ''}`}>
+                                    <p className={`text-2xl font-black uppercase tracking-[0.2em] transition-colors ${shakeActive ? 'text-red-500' : 'text-slate-400'}`}>
+                                        Select Milk Choice
+                                    </p>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-3 mb-12">
+                                <div className="grid grid-cols-1 gap-3 mb-10">
                                     {milks.filter(m => !m.soldOut).map(m => (
-                                        <button key={m.name} onClick={() => finalizeOrder(m.name)} className="bg-white border-2 border-slate-100 p-6 rounded-[2rem] text-xl font-black uppercase italic hover:border-slate-900 active:scale-95 transition-all shadow-sm">{m.name}</button>
+                                        <button 
+                                            key={m.name} 
+                                            onClick={() => setSelectedMilk(m.name)} 
+                                            className={`border-4 p-6 rounded-[2rem] text-xl font-black uppercase italic active:scale-95 transition-all shadow-sm ${selectedMilk === m.name ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-900'}`}
+                                        >
+                                            {m.name}
+                                        </button>
                                     ))}
                                 </div>
 
-                                {/* Go Back button moved down with more margin */}
+                                {selectedMilk && (
+                                    <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-6 rounded-[2rem] font-black uppercase text-xl tracking-[0.1em] shadow-lg animate-in active:scale-95 transition-all mb-8">
+                                        Confirm Order - ${Number(pendingOrder.price || 0).toFixed(2)}
+                                    </button>
+                                )}
+
                                 <div className="mt-16">
-                                    <button onClick={() => setPendingOrder(null)} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-lg active:scale-95 transition-all">Go Back</button>
+                                    <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); }} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-lg active:scale-95 transition-all">Go Back</button>
                                 </div>
                             </div>
                         </div>
