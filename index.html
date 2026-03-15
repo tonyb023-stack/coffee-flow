@@ -62,8 +62,6 @@
                 });
                 db.ref('menu').on('value', snap => setMenuDrinks(snap.val() || []));
                 db.ref('milks').on('value', snap => setMilks(snap.val() || []));
-                
-                // Fixed History Listener
                 db.ref('history').on('value', snap => {
                     const data = snap.val() || {};
                     setHistory(Object.values(data).sort((a,b) => b.completedAt - a.completedAt));
@@ -101,12 +99,7 @@
             };
 
             const markDone = (order) => {
-                const completedOrder = { 
-                    ...order, 
-                    status: 'Completed', 
-                    completedAt: Date.now() 
-                };
-                // Move to history then remove from active
+                const completedOrder = { ...order, status: 'Completed', completedAt: Date.now() };
                 db.ref('history/' + order.id).set(completedOrder);
                 db.ref('orders/' + order.id).remove();
             };
@@ -201,7 +194,6 @@
                         </div>
                     )}
 
-                    {/* Stats & Settings views remain available in the code */}
                     {view === 'stats' && appMode === 'barista' && (
                         <div className="animate-in space-y-6">
                             <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Dashboard</h2>
@@ -224,6 +216,7 @@
 
                     {view === 'settings' && appMode === 'barista' && (
                         <div className="animate-in space-y-8">
+                            {/* MENU MANAGEMENT */}
                             <div className="bg-white p-10 rounded-[3.5rem] shadow-md">
                                 <h2 className="text-2xl font-black mb-8 uppercase text-slate-800 tracking-tighter">Menu Management</h2>
                                 <div className="space-y-4">
@@ -252,6 +245,25 @@
                                 </div>
                             </div>
 
+                            {/* RESTORED MILK OPTIONS */}
+                            <div className="bg-white p-10 rounded-[3.5rem] shadow-md border border-slate-100">
+                                <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter text-slate-800">Milk Options</h2>
+                                <div className="space-y-4">
+                                    {(milks || []).map((m, i) => (
+                                        <div key={i} className="flex gap-2 animate-in">
+                                            <div className="flex-1 bg-slate-50 p-4 rounded-2xl font-black text-slate-700 uppercase italic">{m}</div>
+                                            <button onClick={() => {if(confirm("Delete milk?")){const n = [...milks]; n.splice(i,1); db.ref('milks').set(n);}}} className="bg-red-50 text-red-500 px-6 rounded-2xl font-bold">✕</button>
+                                        </div>
+                                    ))}
+                                    <button onClick={() => {
+                                        const m = prompt("Enter Milk Type:");
+                                        if(m) db.ref('milks').set([...(milks || []), m]);
+                                    }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest">
+                                        + Add Milk Type
+                                    </button>
+                                </div>
+                            </div>
+
                             <div className="bg-slate-200 text-slate-900 p-10 rounded-[3rem]">
                                 <h2 className="text-xl font-black uppercase mb-4 opacity-50">Device Mode</h2>
                                 <div className="flex gap-4">
@@ -275,7 +287,7 @@
                                 </div>
                                 <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-6">Choose Your Milk</h3>
                                 <div className="grid grid-cols-1 gap-4">
-                                    {['Whole', 'Oat', 'Almond', 'Half & Half'].map(m => (
+                                    {(milks && milks.length > 0 ? milks : ['Whole', 'Oat', 'Almond']).map(m => (
                                         <button key={m} onClick={() => finalizeOrder(m)} className="bg-white hover:bg-slate-50 p-8 rounded-[2.5rem] text-3xl font-black border-2 border-slate-100 text-slate-800 active:scale-95 transition uppercase">
                                             {m}
                                         </button>
