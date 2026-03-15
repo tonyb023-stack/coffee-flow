@@ -7,7 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -17,7 +17,15 @@
         @keyframes slideIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
         .confirm-btn { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
         .kiosk-img { width: 100%; height: 260px; object-fit: cover; }
-        #exit-zone { position: fixed; top: 0; right: 0; width: 150px; height: 150px; z-index: 10000; cursor: pointer; }
+        #exit-zone { position: fixed; top: 0; right: 0; width: 150px; height: 150px; z-index: 10000; cursor: pointer; background: transparent; }
+        .nebulous-placeholder {
+            height: 260px;
+            background: linear-gradient(-45deg, #0f172a, #334155, #1e293b);
+            background-size: 400% 400%;
+            animation: gradientShift 10s ease infinite;
+            display: flex; align-items: center; justify-content: center;
+        }
+        @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
     </style>
 </head>
 <body>
@@ -104,6 +112,17 @@
                 a.href = url; a.download = `Nebulous_${label}_Report.csv`; a.click();
             };
 
+            const finalizeOrder = () => {
+                const id = Date.now();
+                db.ref(`orders/${id}`).set({
+                    id, customer: customerName || "Guest", flavor: pendingOrder.name,
+                    price: pendingOrder.price || 0, temp: pendingOrder.temp, milk: selectedMilk,
+                    startTime: id, status: 'Active'
+                });
+                setPendingOrder(null); setSelectedMilk(null); setCustomerName(''); setShowSuccess(true);
+                setTimeout(() => setShowSuccess(false), 2000);
+            };
+
             return (
                 <div className="max-w-4xl mx-auto p-4 md:p-8">
                     {appMode === 'barista' && (
@@ -120,7 +139,7 @@
                         <div className="space-y-4 animate-in">
                             {orders.length === 0 && <p className="text-center py-20 font-black text-slate-300 uppercase italic">All Caught Up</p>}
                             {orders.map(o => (
-                                <div key={o.id} className={`flex justify-between items-center p-8 rounded-[3rem] bg-white shadow-lg border-l-[16px] ${o.temp === 'Hot' ? 'border-red-500' : 'border-blue-500'}`}>
+                                <div key={o.id} className={`flex justify-between items-center p-8 rounded-[3rem] bg-white shadow-lg border-l-[16px] ${o.temp === 'HOT' ? 'border-red-500' : 'border-blue-500'}`}>
                                     <div><h2 className="text-3xl font-black text-slate-800 uppercase italic">{o.customer}</h2><p className="text-slate-400 font-bold uppercase">{o.temp} {o.flavor} • {o.milk}</p></div>
                                     <button onClick={() => {
                                         const now = Date.now();
@@ -134,7 +153,8 @@
 
                     {appMode === 'barista' && view === 'history' && (
                         <div className="space-y-3 animate-in">
-                            {history.slice(0, 20).map(o => (
+                            {history.length === 0 && <p className="text-center py-20 font-black text-slate-200">NO RECENT HISTORY</p>}
+                            {history.slice(0, 30).map(o => (
                                 <div key={o.id} className="bg-white p-6 rounded-[2rem] flex justify-between items-center border border-slate-50 shadow-sm opacity-60">
                                     <div><p className="font-black text-slate-800 uppercase italic">{o.customer}</p><p className="text-[10px] text-slate-400 font-bold uppercase">{o.temp} {o.flavor} • {o.milk}</p></div>
                                     <p className="font-mono text-xs text-slate-300">${Number(o.price).toFixed(2)}</p>
@@ -154,7 +174,7 @@
                                 <div className="bg-white p-10 rounded-[2.5rem] text-center shadow-sm border"><p className="text-[10px] font-black text-slate-300 uppercase mb-2">Orders</p><p className="text-4xl font-black tracking-tighter">{statsData.count}</p></div>
                             </div>
                             <div className="bg-slate-900 p-8 rounded-[3rem] space-y-3">
-                                <p className="text-center text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Export Data</p>
+                                <p className="text-center text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Export Reports</p>
                                 <button onClick={() => exportCSV(1, "Daily")} className="w-full bg-slate-800 text-white p-4 rounded-2xl font-black text-[10px] uppercase">Download 24h</button>
                                 <button onClick={() => exportCSV(7, "Weekly")} className="w-full bg-slate-800 text-white p-4 rounded-2xl font-black text-[10px] uppercase">Download 7d</button>
                                 <button onClick={() => exportCSV(30, "Monthly")} className="w-full bg-slate-800 text-white p-4 rounded-2xl font-black text-[10px] uppercase">Download 30d</button>
@@ -178,7 +198,7 @@
                                         <button onClick={() => { const n = [...menuDrinks]; n[i].soldOut = !d.soldOut; db.ref('menu').set(n); }} className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{d.soldOut ? 'SOLD OUT' : 'AVAILABLE'}</button>
                                     </div>
                                 ))}
-                                <button onClick={() => db.ref('menu').set([...menuDrinks, {name:"New Drink", price:5, image:"", soldOut:false}])} className="w-full bg-slate-100 border-2 border-dashed p-6 rounded-3xl font-black text-xs uppercase text-slate-400 tracking-widest">+ Add New Drink</button>
+                                <button onClick={() => db.ref('menu').set([...menuDrinks, {name:"New Drink", price:5, image:"", soldOut:false}])} className="w-full bg-slate-100 border-2 border-dashed p-6 rounded-3xl font-black text-xs uppercase text-slate-400 tracking-widest">+ Add Drink</button>
                             </div>
                             
                             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
@@ -192,7 +212,7 @@
                                 ))}
                                 <button onClick={() => db.ref('milks').set([...milks, {name:"New Milk", soldOut:false}])} className="w-full bg-slate-100 border-2 border-dashed p-4 rounded-2xl font-black text-xs uppercase text-slate-400 tracking-widest">+ Add Milk</button>
                             </div>
-                            <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-8 rounded-[3rem] font-black uppercase text-xl shadow-2xl tracking-tighter italic">Launch Kiosk Mode</button>
+                            <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-8 rounded-[3rem] font-black uppercase text-xl shadow-2xl italic tracking-tighter">Launch Kiosk</button>
                         </div>
                     )}
 
@@ -242,7 +262,7 @@
 
                     {showSuccess && (
                         <div className="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center animate-in">
-                            <div className="w-32 h-32 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-8"><span className="text-6xl font-black">✓</span></div>
+                            <div className="w-32 h-32 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-8 shadow-inner"><span className="text-6xl font-black">✓</span></div>
                             <h1 className="text-5xl font-black uppercase italic tracking-tighter">ORDER PLACED</h1>
                         </div>
                     )}
