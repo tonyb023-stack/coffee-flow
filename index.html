@@ -78,8 +78,33 @@
                     return acc;
                 }, {});
                 const topDrink = Object.entries(drinkCounts).sort((a,b) => b[1] - a[1])[0];
-                return { count: todaysOrders.length, revenue: totalRevenue, popular: topDrink ? topDrink[0] : 'N/A' };
+                return { count: todaysOrders.length, revenue: totalRevenue, popular: topDrink ? topDrink[0] : 'N/A', todaysOrders };
             }, [history]);
+
+            const exportToCSV = (data, filename) => {
+                if (data.length === 0) return alert("No data to export!");
+                const headers = ["ID", "Customer", "Drink", "Temp", "Milk", "Price", "Note", "Completed At"];
+                const rows = data.map(o => [
+                    o.id,
+                    o.customer,
+                    o.flavor,
+                    o.temp,
+                    o.milk,
+                    o.price,
+                    o.note || "",
+                    new Date(o.completedAt).toLocaleString()
+                ]);
+                
+                const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", `${filename}_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
 
             const finalizeOrder = (milkName) => {
                 const newOrder = {
@@ -214,6 +239,19 @@
                                     <p className="text-slate-400 font-black uppercase text-xs mb-2">Best Seller</p>
                                     <p className="text-2xl font-black text-slate-800 uppercase">{stats.popular}</p>
                                 </div>
+                            </div>
+
+                            <div className="bg-white p-10 rounded-[3.5rem] shadow-md border border-slate-100 mt-8 text-center">
+                                <h2 className="text-xl font-black mb-6 uppercase tracking-tighter text-slate-800">Export Data</h2>
+                                <div className="flex flex-col gap-4">
+                                    <button onClick={() => exportToCSV(stats.todaysOrders, "Daily_Sales")} className="bg-emerald-500 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-lg">
+                                        Download Today's CSV
+                                    </button>
+                                    <button onClick={() => exportToCSV(history, "Total_History")} className="bg-slate-800 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-md">
+                                        Download All-Time CSV
+                                    </button>
+                                </div>
+                                <p className="mt-4 text-[10px] text-slate-400 font-bold uppercase italic">These files can be opened in Excel or Google Sheets.</p>
                             </div>
                         </div>
                     )}
