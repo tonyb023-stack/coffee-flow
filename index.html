@@ -12,22 +12,22 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; overflow-x: hidden; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
         .animate-in { animation: slideIn 0.3s ease-out forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .confirm-btn { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
-        .kiosk-img { width: 100%; height: 200px; object-fit: cover; }
+        .kiosk-img { width: 100%; height: 220px; object-fit: cover; }
         .preview-img { width: 60px; height: 60px; object-fit: cover; border-radius: 12px; border: 2px solid #e2e8f0; }
+        /* Invisible Exit Trigger - Larger area for desktop/mobile */
+        .exit-trigger { position: fixed; top: 0; right: 0; width: 100px; height: 100px; z-index: 9999; cursor: pointer; }
         .nebulous-placeholder {
-            height: 200px;
+            height: 220px;
             background: linear-gradient(-45deg, #1e293b, #334155, #0f172a, #1e293b);
             background-size: 400% 400%;
             animation: gradientShift 10s ease infinite;
             display: flex; align-items: center; justify-content: center;
         }
         @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-        /* Hidden Exit Trigger */
-        .exit-trigger { position: fixed; top: 0; right: 0; width: 80px; height: 80px; z-index: 9999; cursor: default; }
     </style>
 </head>
 <body>
@@ -62,7 +62,7 @@
             const [pendingOrder, setPendingOrder] = useState(null);
             const [selectedMilk, setSelectedMilk] = useState(null);
             const [showSuccess, setShowSuccess] = useState(false);
-            const [exitClicks, setExitClicks] = useState(0);
+            const [clickCount, setClickCount] = useState(0);
 
             useEffect(() => {
                 const refs = {
@@ -82,27 +82,21 @@
                 return () => Object.values(refs).forEach(r => r.off());
             }, []);
 
-            // Triple Click Logic
-            const handleExitClick = () => {
-                const newCount = exitClicks + 1;
-                if (newCount >= 3) {
-                    setAppMode('barista');
-                    setView('settings');
-                    localStorage.setItem('app-mode', 'barista');
-                    setExitClicks(0);
-                } else {
-                    setExitClicks(newCount);
-                    setTimeout(() => setExitClicks(0), 1000); // Reset if not fast enough
-                }
+            // Improved Desktop/Mobile Exit Logic
+            const handleExitAction = () => {
+                setClickCount(prev => {
+                    const next = prev + 1;
+                    if (next >= 3) {
+                        setAppMode('barista');
+                        setView('settings');
+                        localStorage.setItem('app-mode', 'barista');
+                        return 0;
+                    }
+                    return next;
+                });
+                // Reset count if no follow-up click within 1.5 seconds
+                setTimeout(() => setClickCount(0), 1500);
             };
-
-            const statsData = useMemo(() => {
-                const filtered = shiftStatus.active ? history.filter(o => o.completedAt > shiftStatus.startTime) : [];
-                const revenue = filtered.reduce((s, o) => s + (Number(o.price) || 0), 0);
-                const counts = filtered.reduce((a, o) => { a[o.flavor] = (a[o.flavor] || 0) + 1; return a; }, {});
-                const top = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, "N/A");
-                return { revenue, top };
-            }, [history, shiftStatus]);
 
             const markDone = (order) => {
                 const now = Date.now();
@@ -136,50 +130,27 @@
 
                     {view === 'queue' && appMode === 'barista' && (
                         <div className="space-y-4 animate-in">
+                            {orders.length === 0 && <p className="text-center py-20 font-black text-slate-300 uppercase italic">Waiting for orders...</p>}
                             {orders.map(o => (
                                 <div key={o.id} className={`flex justify-between items-center p-8 rounded-[3rem] bg-white shadow-lg border-l-[16px] ${o.temp === 'Hot' ? 'border-red-500' : 'border-blue-500'}`}>
-                                    <div><h2 className="text-3xl font-black text-slate-800">{o.customer}</h2><p className="text-slate-400 font-bold uppercase">{o.temp} {o.flavor} • {o.milk}</p></div>
+                                    <div><h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">{o.customer}</h2><p className="text-slate-400 font-bold uppercase">{o.temp} {o.flavor} • {o.milk}</p></div>
                                     <button onClick={() => markDone(o)} className="bg-emerald-500 text-white w-20 h-20 rounded-3xl text-4xl font-black">✓</button>
                                 </div>
                             ))}
                         </div>
                     )}
 
-                    {view === 'stats' && appMode === 'barista' && (
-                        <div className="space-y-6 animate-in">
-                            <button onClick={() => db.ref('shift').set(shiftStatus.active ? {active:false, startTime:0} : {active:true, startTime:Date.now()})} 
-                                className={`w-full p-6 rounded-[2rem] font-black uppercase text-white shadow-lg ${shiftStatus.active ? 'bg-red-500' : 'bg-emerald-500'}`}>
-                                {shiftStatus.active ? 'End Shift' : 'Start Shift'}
-                            </button>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-white p-8 rounded-[2rem] text-center shadow-sm border">
-                                    <p className="text-xs font-black text-slate-300 uppercase">Revenue</p>
-                                    <p className="text-4xl font-black">${statsData.revenue.toFixed(2)}</p>
-                                </div>
-                                <div className="bg-white p-8 rounded-[2rem] text-center shadow-sm border">
-                                    <p className="text-xs font-black text-slate-300 uppercase">Top Drink</p>
-                                    <p className="text-xl font-black italic uppercase truncate">{statsData.top}</p>
-                                </div>
-                            </div>
-                            <div className="bg-slate-900 p-8 rounded-[2rem] space-y-3">
-                                <button onClick={() => exportFilteredCSV(1, "Daily")} className="w-full bg-slate-800 text-white p-4 rounded-xl font-black uppercase text-[10px] tracking-widest">Export 24h</button>
-                                <button onClick={() => exportFilteredCSV(7, "Weekly")} className="w-full bg-slate-800 text-white p-4 rounded-xl font-black uppercase text-[10px] tracking-widest">Export 7d</button>
-                                <button onClick={() => exportFilteredCSV(30, "Monthly")} className="w-full bg-slate-800 text-white p-4 rounded-xl font-black uppercase text-[10px] tracking-widest">Export 30d</button>
-                            </div>
-                        </div>
-                    )}
-
                     {view === 'settings' && appMode === 'barista' && (
                         <div className="space-y-8 pb-12 animate-in">
                             <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                <h2 className="text-xl font-black mb-6 uppercase italic text-slate-800">Menu</h2>
+                                <h2 className="text-xl font-black mb-6 uppercase italic text-slate-800">Menu Management</h2>
                                 {menuDrinks.map((d, i) => (
                                     <div key={i} className="mb-6 p-5 bg-slate-50 rounded-[2rem] space-y-4">
                                         <div className="flex gap-2 items-center">
                                             {d.image && <img src={d.image} className="preview-img" />}
                                             <input className="flex-1 bg-white p-3 rounded-xl font-black uppercase text-sm border" value={d.name} onChange={(e) => { const n = [...menuDrinks]; n[i].name = e.target.value; db.ref('menu').set(n); }} />
                                             <input type="number" step="0.01" className="w-20 p-3 bg-white rounded-xl font-bold border" value={d.price} onChange={(e) => { const n = [...menuDrinks]; n[i].price = e.target.value; db.ref('menu').set(n); }} />
-                                            <button onClick={() => { if(confirm('Delete?')) { const n = menuDrinks.filter((_, idx) => idx !== i); db.ref('menu').set(n); }}} className="bg-red-100 text-red-600 px-4 py-3 rounded-xl font-black">✕</button>
+                                            <button onClick={() => { if(confirm('Delete drink?')) { const n = menuDrinks.filter((_, idx) => idx !== i); db.ref('menu').set(n); }}} className="bg-red-100 text-red-600 px-4 py-3 rounded-xl font-black">✕</button>
                                         </div>
                                         <input className="w-full bg-white p-3 rounded-xl text-xs font-mono border" placeholder="Image URL" value={d.image || ''} onChange={(e) => { const n = [...menuDrinks]; n[i].image = e.target.value; db.ref('menu').set(n); }} />
                                         <button onClick={() => { const n = [...menuDrinks]; n[i].soldOut = !d.soldOut; db.ref('menu').set(n); }} className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
@@ -187,43 +158,43 @@
                                         </button>
                                     </div>
                                 ))}
-                                <button onClick={() => db.ref('menu').set([...menuDrinks, {name:"New", price:5, image:"", soldOut:false}])} className="w-full bg-slate-100 border-2 border-dashed p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Drink</button>
+                                <button onClick={() => db.ref('menu').set([...menuDrinks, {name:"New Drink", price:5, image:"", soldOut:false}])} className="w-full bg-slate-100 border-2 border-dashed p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add New Flavor</button>
                             </div>
 
                             <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                <h2 className="text-xl font-black mb-6 uppercase italic text-slate-800">Milks</h2>
+                                <h2 className="text-xl font-black mb-6 uppercase italic text-slate-800">Milk Inventory</h2>
                                 {milks.map((m, i) => (
                                     <div key={i} className="flex items-center gap-3 mb-3 p-3 bg-slate-50 rounded-2xl border">
                                         <input className="flex-1 bg-transparent font-black uppercase" value={m.name} onChange={(e) => { const n = [...milks]; n[i].name = e.target.value; db.ref('milks').set(n); }} />
                                         <button onClick={() => { const n = [...milks]; n[i].soldOut = !m.soldOut; db.ref('milks').set(n); }} className={`px-4 py-2 rounded-lg font-black text-[10px] ${m.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{m.soldOut ? 'OUT' : 'IN'}</button>
-                                        <button onClick={() => { if(confirm('Remove?')) { const n = milks.filter((_, idx) => idx !== i); db.ref('milks').set(n); }}} className="text-red-400 px-2 font-black">✕</button>
+                                        <button onClick={() => { if(confirm('Remove milk?')) { const n = milks.filter((_, idx) => idx !== i); db.ref('milks').set(n); }}} className="text-red-400 px-2 font-black">✕</button>
                                     </div>
                                 ))}
-                                <button onClick={() => db.ref('milks').set([...milks, {name:"New Milk", soldOut:false}])} className="w-full bg-slate-100 border-2 border-dashed p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Milk</button>
+                                <button onClick={() => db.ref('milks').set([...milks, {name:"New Milk", soldOut:false}])} className="w-full bg-slate-100 border-2 border-dashed p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Milk Option</button>
                             </div>
-                            <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] font-black uppercase shadow-xl">Start Kiosk</button>
+                            <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-6 rounded-[3rem] font-black uppercase shadow-2xl tracking-widest">Activate Kiosk</button>
                         </div>
                     )}
 
                     {appMode === 'kiosk' && (
-                        <div className="animate-in pt-12">
-                            <div className="exit-trigger" onClick={handleExitClick}></div>
+                        <div className="animate-in pt-12 pb-20">
+                            <div className="exit-trigger" onClick={handleExitAction}></div>
                             <header className="text-center mb-16">
-                                <h1 className="text-6xl font-black text-slate-900 tracking-tighter uppercase italic">NEBULOUS</h1>
+                                <h1 className="text-7xl font-black text-slate-900 tracking-tighter uppercase italic">NEBULOUS</h1>
                             </header>
-                            <input type="text" placeholder="WHO IS THIS FOR?" className="w-full bg-transparent border-b-4 border-slate-200 p-4 text-4xl font-black uppercase text-center outline-none mb-10" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-                            <div className="grid grid-cols-1 gap-8">
+                            <input type="text" placeholder="WHO IS THIS FOR?" className="w-full bg-transparent border-b-4 border-slate-200 p-4 text-4xl font-black uppercase text-center outline-none mb-12 focus:border-slate-900 transition-colors" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                            <div className="grid grid-cols-1 gap-10">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
-                                    <div key={drink.name} className="bg-white rounded-[2.5rem] overflow-hidden shadow-lg border">
-                                        {drink.image ? <img src={drink.image} className="kiosk-img" /> : <div className="nebulous-placeholder"><span className="text-white/20 font-black italic text-4xl">N</span></div>}
-                                        <div className="p-8">
+                                    <div key={drink.name} className="bg-white rounded-[3rem] overflow-hidden shadow-xl border border-slate-100">
+                                        {drink.image ? <img src={drink.image} className="kiosk-img" /> : <div className="nebulous-placeholder"><span className="text-white/20 font-black italic text-5xl">N</span></div>}
+                                        <div className="p-10">
                                             <div className="flex justify-between items-baseline mb-8">
-                                                <h3 className="text-3xl font-black text-slate-800 uppercase italic">{drink.name}</h3>
-                                                <span className="text-xl font-bold text-slate-300 italic">${Number(drink.price).toFixed(2)}</span>
+                                                <h3 className="text-4xl font-black text-slate-800 uppercase italic tracking-tight">{drink.name}</h3>
+                                                <span className="text-2xl font-bold text-slate-300 italic">${Number(drink.price).toFixed(2)}</span>
                                             </div>
                                             <div className="flex gap-4">
-                                                <button onClick={() => setPendingOrder({...drink, temp:'Hot'})} className="bg-red-500 flex-1 py-8 rounded-3xl text-white font-black text-2xl shadow-lg">HOT</button>
-                                                <button onClick={() => setPendingOrder({...drink, temp:'Iced'})} className="bg-blue-500 flex-1 py-8 rounded-3xl text-white font-black text-2xl shadow-lg">ICED</button>
+                                                <button onClick={() => setPendingOrder({...drink, temp:'Hot'})} className="bg-red-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg active:scale-95 transition-transform">HOT</button>
+                                                <button onClick={() => setPendingOrder({...drink, temp:'Iced'})} className="bg-blue-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg active:scale-95 transition-transform">ICED</button>
                                             </div>
                                         </div>
                                     </div>
@@ -233,24 +204,29 @@
                     )}
 
                     {pendingOrder && (
-                        <div className="fixed inset-0 bg-white/95 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
-                            <div className="max-w-md w-full animate-in">
-                                <h2 className="text-5xl font-black uppercase italic text-center mb-10">{pendingOrder.name}</h2>
-                                <div className="grid grid-cols-1 gap-3 mb-10">
+                        <div className="fixed inset-0 bg-white/98 backdrop-blur-2xl z-[100] flex items-center justify-center p-6">
+                            <div className="max-w-md w-full animate-in text-center">
+                                {/* RESTORED: Labels above milk selection */}
+                                <p className="text-slate-400 font-black uppercase tracking-widest text-sm mb-2">{pendingOrder.temp} SELECTION</p>
+                                <h2 className="text-5xl font-black uppercase italic text-slate-900 mb-10 leading-none">{pendingOrder.name}</h2>
+                                
+                                <div className="grid grid-cols-1 gap-3 mb-12">
+                                    <p className="text-xs font-black uppercase text-slate-300 mb-2">Choose Milk Type</p>
                                     {milks.filter(m => !m.soldOut).map(m => (
-                                        <button key={m.name} onClick={() => setSelectedMilk(m.name)} className={`border-4 p-6 rounded-[2rem] text-xl font-black uppercase italic ${selectedMilk === m.name ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-900'}`}>{m.name}</button>
+                                        <button key={m.name} onClick={() => setSelectedMilk(m.name)} className={`border-4 p-6 rounded-[2.5rem] text-2xl font-black uppercase italic transition-all ${selectedMilk === m.name ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-900'}`}>{m.name}</button>
                                     ))}
                                 </div>
-                                {selectedMilk && <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-6 rounded-[2rem] font-black uppercase text-xl shadow-lg">Confirm Order</button>}
-                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); }} className="mt-8 w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-xs">Go Back</button>
+                                {selectedMilk && <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-8 rounded-[2.5rem] font-black uppercase text-2xl shadow-xl active:scale-95 transition-transform">Confirm Order</button>}
+                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); }} className="mt-8 w-full bg-slate-100 text-slate-400 py-6 rounded-[2rem] font-black uppercase text-xs tracking-widest">Go Back</button>
                             </div>
                         </div>
                     )}
 
                     {showSuccess && (
                         <div className="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center animate-in">
-                            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4"><span className="text-4xl font-black">✓</span></div>
-                            <h1 className="text-3xl font-black uppercase italic">ORDERED</h1>
+                            <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-inner"><span className="text-5xl font-black">✓</span></div>
+                            <h1 className="text-4xl font-black uppercase italic tracking-tighter">ORDER RECEIVED</h1>
+                            <p className="text-slate-400 font-bold mt-2 uppercase">See you at the cart!</p>
                         </div>
                     )}
                 </div>
