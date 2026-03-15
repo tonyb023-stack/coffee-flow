@@ -37,6 +37,13 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
+        // Color Logic Helper
+        const getOrderColor = (temp) => {
+            if (temp === 'Hot') return 'border-red-500';
+            if (temp === 'Iced') return 'border-blue-500';
+            return 'border-slate-300'; // Default
+        };
+
         const BaristaApp = () => {
             const [view, setView] = useState('queue');
             const [appMode, setAppMode] = useState(() => localStorage.getItem('app-mode') || 'barista');
@@ -147,8 +154,8 @@
                                             <span className="text-xl font-black text-orange-500">${Number(drink.price || 0).toFixed(2)}</span>
                                         </div>
                                         <div className="flex gap-4 w-full">
-                                            <button onClick={() => addOrder(drink, 'Hot')} className="flex-1 bg-orange-50 text-orange-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">HOT</button>
-                                            <button onClick={() => addOrder(drink, 'Iced')} className="flex-1 bg-blue-50 text-blue-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">ICED</button>
+                                            <button onClick={() => addOrder(drink, 'Hot')} className="flex-1 bg-red-100 text-red-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">HOT</button>
+                                            <button onClick={() => addOrder(drink, 'Iced')} className="flex-1 bg-blue-100 text-blue-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">ICED</button>
                                         </div>
                                     </div>
                                 ))}
@@ -160,7 +167,7 @@
                         <div className="animate-in space-y-6">
                             <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Orders</h2>
                             {orders.map(order => (
-                                <div key={order.id} className="flex justify-between items-center p-8 rounded-[3.5rem] bg-white shadow-xl border-l-[20px] border-slate-900 animate-in">
+                                <div key={order.id} className={`flex justify-between items-center p-8 rounded-[3.5rem] bg-white shadow-xl border-l-[20px] ${getOrderColor(order.temp)} animate-in`}>
                                     <div className="flex-1">
                                         <h2 className="text-4xl font-black text-slate-800">{order.customer}</h2>
                                         <p className="text-slate-500 font-extrabold text-lg uppercase">{order.temp} {order.flavor} • {order.milk}</p>
@@ -234,7 +241,7 @@
 
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 z-[100]">
-                            <div className="bg-white w-full max-w-lg rounded-[4rem] p-10 text-center animate-in shadow-2xl">
+                            <div className={`bg-white w-full max-w-lg rounded-[4rem] p-10 text-center animate-in shadow-2xl border-l-[30px] ${getOrderColor(pendingOrder.temp)}`}>
                                 <div className="mb-6">
                                     <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Nebulous Coffee</p>
                                     <h2 className="text-3xl font-black text-slate-800 uppercase italic">{pendingOrder.customer}</h2>
