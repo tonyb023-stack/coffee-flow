@@ -100,14 +100,12 @@
             const exportByTimeframe = (type) => {
                 const now = new Date();
                 let startTime;
-
                 if (type === 'week') {
                     const day = now.getDay();
                     startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day).getTime();
                 } else if (type === 'month') {
                     startTime = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
                 }
-
                 const filtered = history.filter(o => o.completedAt >= startTime);
                 exportToCSV(filtered, `Nebulous_${type}_Report`);
             };
@@ -169,8 +167,8 @@
                                                     <span className="text-xl font-bold text-slate-300 italic">${Number(drink.price || 0).toFixed(2)}</span>
                                                 </div>
                                                 <div className="flex gap-4">
-                                                    <button onClick={() => setPendingOrder({...drink, temp:'Hot'})} className="hot-btn flex-1 py-8 rounded-3xl text-white font-black text-2xl shadow-lg">HOT</button>
-                                                    <button onClick={() => setPendingOrder({...drink, temp:'Iced'})} className="iced-btn flex-1 py-8 rounded-3xl text-white font-black text-2xl shadow-lg">ICED</button>
+                                                    <button onClick={() => setPendingOrder({...drink, temp:'Hot'})} className="hot-btn flex-1 py-8 rounded-3xl text-white font-black text-2xl shadow-lg active:scale-95 transition-all">HOT</button>
+                                                    <button onClick={() => setPendingOrder({...drink, temp:'Iced'})} className="iced-btn flex-1 py-8 rounded-3xl text-white font-black text-2xl shadow-lg active:scale-95 transition-all">ICED</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -259,21 +257,26 @@
                                     <button onClick={() => db.ref('milks').set([...milks, {name: "New Milk", soldOut: false}])} className="w-full bg-slate-100 p-4 rounded-2xl font-black text-xs uppercase text-slate-400">+ Add Milk Option</button>
                                 </div>
                             </div>
-                            <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-xl">Enter Kiosk Mode</button>
+                            <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-xl active:scale-95 transition-all">Enter Kiosk Mode</button>
                         </div>
                     )}
 
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-white/95 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
                             <div className="max-w-md w-full animate-in">
-                                <div className="text-center mb-8"><h2 className="text-4xl font-black uppercase italic leading-none mb-2">{pendingOrder.name}</h2><p className="text-slate-400 font-bold uppercase text-xs">{pendingOrder.temp} Choice</p></div>
-                                <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full p-4 bg-slate-50 rounded-2xl mb-6 font-bold uppercase text-center outline-none" value={note} onChange={(e) => setNote(e.target.value)} />
-                                <div className="grid grid-cols-1 gap-3 mb-8">
+                                <div className="text-center mb-10">
+                                    <h2 className="text-5xl font-black uppercase italic tracking-tighter leading-none mb-3">{pendingOrder.name}</h2>
+                                    <p className={`text-xl font-black uppercase tracking-widest ${pendingOrder.temp === 'Hot' ? 'text-red-500' : 'text-blue-500'}`}>
+                                        {pendingOrder.temp}
+                                    </p>
+                                </div>
+                                <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full p-5 bg-slate-50 rounded-3xl mb-8 font-bold uppercase text-center outline-none border-2 border-transparent focus:border-slate-200 transition-all" value={note} onChange={(e) => setNote(e.target.value)} />
+                                <div className="grid grid-cols-1 gap-3 mb-10">
                                     {milks.filter(m => !m.soldOut).map(m => (
-                                        <button key={m.name} onClick={() => finalizeOrder(m.name)} className="bg-slate-50 border-2 border-slate-100 p-6 rounded-3xl text-xl font-black uppercase italic hover:border-orange-500">{m.name}</button>
+                                        <button key={m.name} onClick={() => finalizeOrder(m.name)} className="bg-white border-2 border-slate-100 p-6 rounded-[2rem] text-xl font-black uppercase italic hover:border-slate-900 active:scale-95 transition-all shadow-sm">{m.name}</button>
                                     ))}
                                 </div>
-                                <button onClick={() => setPendingOrder(null)} className="w-full text-slate-300 font-black uppercase text-[10px]">Go Back</button>
+                                <button onClick={() => setPendingOrder(null)} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-lg active:scale-95 transition-all">Go Back</button>
                             </div>
                         </div>
                     )}
