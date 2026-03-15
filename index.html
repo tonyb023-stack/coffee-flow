@@ -50,6 +50,7 @@
             const [menuDrinks, setMenuDrinks] = useState([]);
             const [milks, setMilks] = useState([]);
             const [history, setHistory] = useState([]);
+            const [shiftStatus, setShiftStatus] = useState({ active: false, startTime: null });
             const [customerName, setCustomerName] = useState('');
             const [pendingOrder, setPendingOrder] = useState(null);
             const [showSuccess, setShowSuccess] = useState(false);
@@ -67,23 +68,53 @@
                     const data = snap.val() || {};
                     setHistory(Object.values(data).sort((a,b) => b.completedAt - a.completedAt));
                 });
+                db.ref('shift').on('value', snap => setShiftStatus(snap.val() || { active: false }));
             }, []);
 
             const stats = useMemo(() => {
-                const today = new Date().setHours(0,0,0,0);
-                const todaysOrders = history.filter(o => o.startTime > today);
-                const totalRevenue = todaysOrders.reduce((sum, o) => sum + (Number(o.price) || 0), 0);
-                const drinkCounts = todaysOrders.reduce((acc, o) => {
+                const now = new Date();
+                const startOfDay = new Date().setHours(0,0,0,0);
+                const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay())).setHours(0,0,0,0);
+
+                // Filter history based on current shift if active, else just today
+                const activeShiftOrders = shiftStatus.active 
+                    ? history.filter(o => o.completedAt > shiftStatus.startTime)
+                    : [];
+
+                const todaysOrders = history.filter(o => o.completedAt > startOfDay);
+                const weeklyOrders = history.filter(o => o.completedAt > startOfWeek);
+                
+                const totalRevenue = activeShiftOrders.reduce((sum, o) => sum + (Number(o.price) || 0), 0);
+                const drinkCounts = activeShiftOrders.reduce((acc, o) => {
                     acc[o.flavor] = (acc[o.flavor] || 0) + 1;
                     return acc;
                 }, {});
                 const topDrink = Object.entries(drinkCounts).sort((a,b) => b[1] - a[1])[0];
-                return { count: todaysOrders.length, revenue: totalRevenue, popular: topDrink ? topDrink[0] : 'N/A', todaysOrders };
-            }, [history]);
+
+                return { 
+                    count: activeShiftOrders.length, 
+                    revenue: totalRevenue, 
+                    popular: topDrink ? topDrink[0] : 'N/A', 
+                    activeShiftOrders,
+                    todaysOrders,
+                    weeklyOrders
+                };
+            }, [history, shiftStatus]);
+
+            const toggleShift = () => {
+                if (!shiftStatus.active) {
+                    db.ref('shift').set({ active: true, startTime: Date.now() });
+                } else {
+                    if (confirm(`End Shift? Total Revenue: $${stats.revenue.toFixed(2)}`)) {
+                        db.ref('shift').set({ active: false, startTime: null });
+                        alert("Shift Ended. Live history cleared for next shift.");
+                    }
+                }
+            };
 
             const exportToCSV = (data, filename) => {
-                if (data.length === 0) return alert("No data to export!");
-                const headers = ["ID", "Customer", "Drink", "Temp", "Milk", "Price", "Note", "Completed At"];
+                if (data.length === 0) return alert("No data for this period!");
+                const headers = ["ID", "Customer", "Drink", "Temp", "Milk", "Price", "Note", "Ordered At", "Completed At", "Wait Time (Sec)"];
                 const rows = data.map(o => [
                     o.id,
                     o.customer,
@@ -92,7 +123,9 @@
                     o.milk,
                     o.price,
                     o.note || "",
-                    new Date(o.completedAt).toLocaleString()
+                    new Date(o.startTime).toLocaleString(),
+                    new Date(o.completedAt).toLocaleString(),
+                    o.waitTime || 0
                 ]);
                 
                 const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
@@ -127,7 +160,9 @@
             };
 
             const markDone = (order) => {
-                const completedOrder = { ...order, status: 'Completed', completedAt: Date.now() };
+                const completedAt = Date.now();
+                const waitTime = Math.floor((completedAt - order.startTime) / 1000);
+                const completedOrder = { ...order, status: 'Completed', completedAt, waitTime };
                 db.ref('history/' + order.id).set(completedOrder);
                 db.ref('orders/' + order.id).remove();
             };
@@ -158,42 +193,54 @@
                     {appMode === 'kiosk' && <div className="hidden-trigger" onClick={handleSecretTap}></div>}
 
                     {appMode === 'barista' && (
-                        <nav className="grid grid-cols-4 gap-2 mb-8 bg-white p-2 rounded-[2rem] shadow-sm border border-slate-200">
-                            {['queue', 'history', 'stats', 'settings'].map(v => (
-                                <button key={v} onClick={() => setView(v)} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest ${view === v ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>
-                                    {v}
-                                </button>
-                            ))}
-                        </nav>
+                        <div className="flex flex-col gap-4 mb-8">
+                            <nav className="grid grid-cols-4 gap-2 bg-white p-2 rounded-[2rem] shadow-sm border border-slate-200">
+                                {['queue', 'history', 'stats', 'settings'].map(v => (
+                                    <button key={v} onClick={() => setView(v)} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest ${view === v ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>
+                                        {v}
+                                    </button>
+                                ))}
+                            </nav>
+                            <button onClick={toggleShift} className={`w-full p-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-sm transition ${shiftStatus.active ? 'bg-red-100 text-red-600' : 'bg-emerald-500 text-white'}`}>
+                                {shiftStatus.active ? '● End Current Shift' : '▶ Start New Shift'}
+                            </button>
+                        </div>
                     )}
 
                     {appMode === 'kiosk' && (
                         <div className="animate-in pt-10">
                             <h1 className="text-5xl text-center mb-10 font-black text-slate-900 uppercase italic tracking-tighter">Nebulous Coffee</h1>
-                            <input type="text" placeholder="ENTER YOUR NAME..." className="w-full p-8 text-4xl rounded-[3rem] shadow-xl mb-10 border-none bg-white outline-none focus:ring-4 focus:ring-slate-200 text-center font-black uppercase" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-                            
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                {(menuDrinks || []).filter(d => !d.soldOut).map((drink) => (
-                                    <div key={drink.name} className="bg-white p-8 rounded-[4rem] shadow-md border border-slate-100 flex flex-col items-center">
-                                        <div className="flex justify-between w-full mb-4 px-4">
-                                            <h3 className="text-2xl font-black text-slate-700 uppercase tracking-tight">{drink.name}</h3>
-                                            <span className="text-xl font-black text-orange-500">${Number(drink.price || 0).toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex gap-4 w-full">
-                                            <button onClick={() => setPendingOrder({ flavor: drink.name, price: drink.price, temp: 'Hot', customer: customerName })} className="flex-1 bg-red-100 text-red-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">HOT</button>
-                                            <button onClick={() => setPendingOrder({ flavor: drink.name, price: drink.price, temp: 'Iced', customer: customerName })} className="flex-1 bg-blue-100 text-blue-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">ICED</button>
-                                        </div>
+                            {!shiftStatus.active ? (
+                                <div className="text-center p-20 bg-white rounded-[4rem] shadow-xl">
+                                    <p className="text-2xl font-black text-slate-300 uppercase tracking-widest italic">Currently Closed</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <input type="text" placeholder="ENTER YOUR NAME..." className="w-full p-8 text-4xl rounded-[3rem] shadow-xl mb-10 border-none bg-white outline-none text-center font-black uppercase" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        {(menuDrinks || []).filter(d => !d.soldOut).map((drink) => (
+                                            <div key={drink.name} className="bg-white p-8 rounded-[4rem] shadow-md border border-slate-100 flex flex-col items-center">
+                                                <div className="flex justify-between w-full mb-4 px-4">
+                                                    <h3 className="text-2xl font-black text-slate-700 uppercase tracking-tight">{drink.name}</h3>
+                                                    <span className="text-xl font-black text-orange-500">${Number(drink.price || 0).toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex gap-4 w-full">
+                                                    <button onClick={() => setPendingOrder({ flavor: drink.name, price: drink.price, temp: 'Hot', customer: customerName })} className="flex-1 bg-red-100 text-red-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">HOT</button>
+                                                    <button onClick={() => setPendingOrder({ flavor: drink.name, price: drink.price, temp: 'Iced', customer: customerName })} className="flex-1 bg-blue-100 text-blue-700 py-10 rounded-[2.5rem] font-black text-3xl active:scale-95 transition">ICED</button>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                                </>
+                            )}
                         </div>
                     )}
 
                     {view === 'queue' && appMode === 'barista' && (
                         <div className="animate-in space-y-6">
-                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Active Orders</h2>
+                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Active Queue</h2>
                             {orders.map(order => (
-                                <div key={order.id} className={`flex justify-between items-center p-8 rounded-[3.5rem] bg-white shadow-xl border-l-[20px] ${getOrderColor(order.temp)} animate-in`}>
+                                <div key={order.id} className={`flex justify-between items-center p-8 rounded-[3.5rem] bg-white shadow-xl border-l-[20px] ${getOrderColor(order.temp)}`}>
                                     <div className="flex-1">
                                         <h2 className="text-4xl font-black text-slate-800">{order.customer}</h2>
                                         <p className="text-slate-500 font-extrabold text-lg uppercase">{order.temp} {order.flavor} • {order.milk}</p>
@@ -207,15 +254,12 @@
 
                     {view === 'history' && appMode === 'barista' && (
                         <div className="animate-in space-y-4">
-                            <div className="flex justify-between items-center px-4">
-                                <h2 className="text-2xl font-black text-slate-300 uppercase italic">Past Orders</h2>
-                                <button onClick={() => {if(confirm("Clear History?")) db.ref('history').remove();}} className="text-[10px] font-black text-red-400 uppercase tracking-widest">Clear All</button>
-                            </div>
-                            {history.map(order => (
-                                <div key={order.id} className="flex justify-between items-center p-6 rounded-[2.5rem] bg-white shadow-sm border border-slate-100 opacity-60">
+                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Shift History</h2>
+                            {stats.activeShiftOrders.map(order => (
+                                <div key={order.id} className="flex justify-between items-center p-6 rounded-[2.5rem] bg-white shadow-sm opacity-60">
                                     <div>
                                         <h3 className="text-xl font-black text-slate-800">{order.customer}</h3>
-                                        <p className="text-slate-400 font-bold text-xs uppercase">{order.temp} {order.flavor} {order.note ? `[${order.note}]` : ''} • {new Date(order.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                        <p className="text-slate-400 font-bold text-xs uppercase">{order.flavor} • {order.waitTime || 0}s wait</p>
                                     </div>
                                     <span className="font-black text-slate-300">${Number(order.price || 0).toFixed(2)}</span>
                                 </div>
@@ -225,33 +269,35 @@
 
                     {view === 'stats' && appMode === 'barista' && (
                         <div className="animate-in space-y-6">
-                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Dashboard</h2>
+                            <h2 className="text-2xl font-black text-slate-300 uppercase italic px-4">Shift Stats</h2>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="bg-white p-8 rounded-[3rem] shadow-sm text-center">
-                                    <p className="text-slate-400 font-black uppercase text-xs mb-2">Total Drinks</p>
+                                    <p className="text-slate-400 font-black uppercase text-xs mb-2">Shift Drinks</p>
                                     <p className="text-5xl font-black text-slate-800">{stats.count}</p>
                                 </div>
                                 <div className="bg-slate-900 p-8 rounded-[3rem] shadow-lg text-center text-white">
-                                    <p className="opacity-70 font-black uppercase text-xs mb-2">Today's Revenue</p>
+                                    <p className="opacity-70 font-black uppercase text-xs mb-2">Shift Revenue</p>
                                     <p className="text-5xl font-black">${stats.revenue.toFixed(2)}</p>
                                 </div>
                                 <div className="bg-white p-8 rounded-[3rem] shadow-sm text-center">
-                                    <p className="text-slate-400 font-black uppercase text-xs mb-2">Best Seller</p>
+                                    <p className="text-slate-400 font-black uppercase text-xs mb-2">Shift Best Seller</p>
                                     <p className="text-2xl font-black text-slate-800 uppercase">{stats.popular}</p>
                                 </div>
                             </div>
 
-                            <div className="bg-white p-10 rounded-[3.5rem] shadow-md border border-slate-100 mt-8 text-center">
-                                <h2 className="text-xl font-black mb-6 uppercase tracking-tighter text-slate-800">Export Data</h2>
-                                <div className="flex flex-col gap-4">
-                                    <button onClick={() => exportToCSV(stats.todaysOrders, "Daily_Sales")} className="bg-emerald-500 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-lg">
-                                        Download Today's CSV
+                            <div className="bg-white p-10 rounded-[3.5rem] shadow-md mt-8">
+                                <h2 className="text-xl font-black mb-6 uppercase text-slate-800 text-center">Data Exports</h2>
+                                <div className="grid grid-cols-1 gap-4">
+                                    <button onClick={() => exportToCSV(stats.activeShiftOrders, "Current_Shift")} className="bg-orange-500 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-lg">
+                                        Export Active Shift
                                     </button>
-                                    <button onClick={() => exportToCSV(history, "Total_History")} className="bg-slate-800 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-md">
-                                        Download All-Time CSV
+                                    <button onClick={() => exportToCSV(stats.weeklyOrders, "Weekly_Sales")} className="bg-blue-500 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-lg">
+                                        Export Last 7 Days
+                                    </button>
+                                    <button onClick={() => exportToCSV(history, "Master_History")} className="bg-slate-800 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-md">
+                                        Export Master History
                                     </button>
                                 </div>
-                                <p className="mt-4 text-[10px] text-slate-400 font-bold uppercase italic">These files can be opened in Excel or Google Sheets.</p>
                             </div>
                         </div>
                     )}
@@ -259,61 +305,23 @@
                     {view === 'settings' && appMode === 'barista' && (
                         <div className="animate-in space-y-8">
                             <div className="bg-white p-10 rounded-[3.5rem] shadow-md">
-                                <h2 className="text-2xl font-black mb-8 uppercase text-slate-800 tracking-tighter">Menu Management</h2>
+                                <h2 className="text-2xl font-black mb-8 uppercase text-slate-800">Menu</h2>
                                 <div className="space-y-4">
                                     {(menuDrinks || []).map((d, i) => (
                                         <div key={i} className="flex items-center gap-3 p-2 bg-slate-50 rounded-3xl">
                                             <input className="flex-1 bg-transparent p-4 font-black text-slate-700 uppercase outline-none" value={d.name} onChange={(e) => {
                                                 const n = [...menuDrinks]; n[i].name = e.target.value; db.ref('menu').set(n);
                                             }} />
-                                            <div className="flex items-center bg-white rounded-xl px-3 border border-slate-200">
-                                                <span className="font-bold text-slate-400">$</span>
-                                                <input type="number" step="0.01" className="w-16 p-3 font-bold outline-none" value={d.price} onChange={(e) => {
-                                                    const n = [...menuDrinks]; n[i].price = e.target.value; db.ref('menu').set(n);
-                                                }} />
-                                            </div>
+                                            <input type="number" className="w-16 p-3 font-bold bg-white rounded-xl border" value={d.price} onChange={(e) => {
+                                                const n = [...menuDrinks]; n[i].price = e.target.value; db.ref('menu').set(n);
+                                            }} />
                                             <button onClick={() => {
                                                 const n = [...menuDrinks]; n[i].soldOut = !n[i].soldOut; db.ref('menu').set(n);
-                                            }} className={`px-4 py-4 rounded-2xl font-black text-[10px] uppercase ${d.soldOut ? 'bg-red-500 text-white shadow-md' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                {d.soldOut ? 'SOLD OUT' : 'ACTIVE'}
+                                            }} className={`px-4 py-4 rounded-2xl font-black text-[10px] uppercase ${d.soldOut ? 'bg-red-500 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                {d.soldOut ? 'OUT' : 'IN'}
                                             </button>
                                         </div>
                                     ))}
-                                    <button onClick={() => {
-                                        const n = prompt("Drink Name:");
-                                        if(n) db.ref('menu').set([...(menuDrinks || []), {name: n, price: 5.00, soldOut: false}]);
-                                    }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest shadow-lg mt-4">+ Add New Drink</button>
-                                </div>
-                            </div>
-
-                            <div className="bg-white p-10 rounded-[3.5rem] shadow-md border border-slate-100">
-                                <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter text-slate-800">Milk Options</h2>
-                                <div className="space-y-4">
-                                    {(milks || []).map((m, i) => (
-                                        <div key={i} className="flex items-center gap-3 p-2 bg-slate-50 rounded-3xl animate-in">
-                                            <div className="flex-1 p-4 font-black text-slate-700 uppercase italic">{m.name}</div>
-                                            <button onClick={() => {
-                                                const n = [...milks]; n[i].soldOut = !m.soldOut; db.ref('milks').set(n);
-                                            }} className={`px-4 py-4 rounded-2xl font-black text-[10px] uppercase ${m.soldOut ? 'bg-red-500 text-white shadow-md' : 'bg-slate-200 text-slate-600'}`}>
-                                                {m.soldOut ? 'OUT' : 'IN STOCK'}
-                                            </button>
-                                            <button onClick={() => {if(confirm("Delete?")){const n = [...milks]; n.splice(i,1); db.ref('milks').set(n);}}} className="p-4 text-slate-300">✕</button>
-                                        </div>
-                                    ))}
-                                    <button onClick={() => {
-                                        const m = prompt("Enter Milk Type:");
-                                        if(m) db.ref('milks').set([...(milks || []), {name: m, soldOut: false}]);
-                                    }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] font-black uppercase tracking-widest">
-                                        + Add Milk Type
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="bg-slate-200 text-slate-900 p-10 rounded-[3rem]">
-                                <h2 className="text-xl font-black uppercase mb-4 opacity-50">Device Mode</h2>
-                                <div className="flex gap-4">
-                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="flex-1 p-5 rounded-2xl font-black uppercase text-xs bg-slate-300">Set Kiosk</button>
-                                    <button onClick={() => { setAppMode('barista'); localStorage.setItem('app-mode', 'barista'); }} className="flex-1 p-5 rounded-2xl font-black uppercase text-xs bg-slate-900 text-white">Set Barista</button>
                                 </div>
                             </div>
                         </div>
@@ -322,28 +330,19 @@
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 z-[100]">
                             <div className={`bg-white w-full max-w-lg rounded-[4rem] p-10 text-center animate-in shadow-2xl border-l-[30px] ${getOrderColor(pendingOrder.temp)} overflow-y-auto max-h-[90vh]`}>
-                                <div className="mb-4">
-                                    <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Nebulous Coffee</p>
+                                <div className="mb-4 text-center">
+                                    <p className="text-slate-400 font-black uppercase text-xs tracking-widest">Nebulous Coffee</p>
                                     <h2 className="text-3xl font-black text-slate-800 uppercase italic">{pendingOrder.customer}</h2>
                                 </div>
-                                
-                                <div className="bg-slate-50 p-4 rounded-[2rem] mb-6 border border-slate-100">
-                                    <p className="text-lg font-black text-slate-600 uppercase tracking-tighter">{pendingOrder.temp} {pendingOrder.flavor}</p>
-                                    <p className="text-2xl font-black text-orange-500 mt-1">${Number(pendingOrder.price || 0).toFixed(2)}</p>
-                                </div>
-
-                                <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-4 italic">Any Special Requests?</h3>
-                                <input type="text" placeholder="EXTRA SWEET, LIGHT ICE..." className="w-full p-4 bg-slate-100 rounded-2xl mb-6 font-bold uppercase text-center outline-none focus:ring-2 focus:ring-slate-300" value={note} onChange={(e) => setNote(e.target.value)} />
-
-                                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Choose Your Milk</h3>
+                                <input type="text" placeholder="NOTES..." className="w-full p-4 bg-slate-100 rounded-2xl mb-6 font-bold uppercase text-center outline-none" value={note} onChange={(e) => setNote(e.target.value)} />
                                 <div className="grid grid-cols-1 gap-3">
                                     {(milks || []).filter(m => !m.soldOut).map(m => (
-                                        <button key={m.name} onClick={() => finalizeOrder(m.name)} className="bg-white hover:bg-slate-50 p-6 rounded-[2rem] text-2xl font-black border-2 border-slate-100 text-slate-800 active:scale-95 transition uppercase italic">
+                                        <button key={m.name} onClick={() => finalizeOrder(m.name)} className="bg-white p-6 rounded-[2rem] text-2xl font-black border-2 border-slate-100 text-slate-800 active:scale-95 transition uppercase italic">
                                             {m.name}
                                         </button>
                                     ))}
                                 </div>
-                                <button onClick={() => {setPendingOrder(null); setNote('');}} className="mt-6 font-black text-slate-300 uppercase text-xs tracking-widest">Go Back</button>
+                                <button onClick={() => {setPendingOrder(null); setNote('');}} className="mt-6 font-black text-slate-300 uppercase text-xs tracking-widest">Cancel</button>
                             </div>
                         </div>
                     )}
