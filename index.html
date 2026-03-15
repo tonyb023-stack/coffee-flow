@@ -18,6 +18,7 @@
         .kiosk-card { background: white; border-radius: 2.5rem; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
         .hot-btn { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
         .iced-btn { background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%); }
+        .confirm-btn { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
         .hidden-trigger { position: fixed; top: 0; right: 0; width: 60px; height: 60px; z-index: 999; }
         .nebulous-placeholder {
             height: 140px;
@@ -59,6 +60,7 @@
             const [shiftStatus, setShiftStatus] = useState({ active: false, startTime: null });
             const [customerName, setCustomerName] = useState('');
             const [pendingOrder, setPendingOrder] = useState(null);
+            const [selectedMilk, setSelectedMilk] = useState(null);
             const [showSuccess, setShowSuccess] = useState(false);
             const [note, setNote] = useState('');
 
@@ -116,14 +118,15 @@
                 db.ref('orders/' + order.id).remove();
             };
 
-            const finalizeOrder = (milkName) => {
+            const finalizeOrder = () => {
+                if (!selectedMilk) return;
                 const newOrder = {
                     id: Date.now(), customer: customerName, flavor: pendingOrder.name,
-                    price: pendingOrder.price || 0, temp: pendingOrder.temp, milk: milkName,
+                    price: pendingOrder.price || 0, temp: pendingOrder.temp, milk: selectedMilk,
                     note, startTime: Date.now(), status: 'Active'
                 };
                 db.ref('orders/' + newOrder.id).set(newOrder);
-                setPendingOrder(null); setCustomerName(''); setNote(''); setShowSuccess(true);
+                setPendingOrder(null); setSelectedMilk(null); setCustomerName(''); setNote(''); setShowSuccess(true);
                 setTimeout(() => setShowSuccess(false), 3000);
             };
 
@@ -184,18 +187,6 @@
                                 <div key={order.id} className={`flex justify-between items-center p-8 rounded-[3rem] bg-white shadow-lg border-l-[16px] ${order.temp === 'Hot' ? 'border-red-500' : 'border-blue-500'}`}>
                                     <div><h2 className="text-3xl font-black text-slate-800">{order.customer}</h2><p className="text-slate-400 font-bold uppercase">{order.temp} {order.flavor} • {order.milk}</p></div>
                                     <button onClick={() => markDone(order)} className="bg-emerald-500 text-white w-20 h-20 rounded-3xl text-4xl font-black">✓</button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {view === 'history' && appMode === 'barista' && (
-                        <div className="space-y-4">
-                            <h2 className="text-xl font-black text-slate-300 uppercase italic px-4">Shift Orders</h2>
-                            {shiftData.orders.map(o => (
-                                <div key={o.id} className="bg-white p-6 rounded-3xl shadow-sm flex justify-between items-center opacity-70">
-                                    <div><p className="font-black text-slate-800 uppercase">{o.customer}</p><p className="text-xs font-bold text-slate-400">{o.flavor} • {o.milk}</p></div>
-                                    <span className="font-black text-slate-400">${Number(o.price || 0).toFixed(2)}</span>
                                 </div>
                             ))}
                         </div>
@@ -270,13 +261,29 @@
                                         {pendingOrder.temp}
                                     </p>
                                 </div>
-                                <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full p-5 bg-slate-50 rounded-3xl mb-8 font-bold uppercase text-center outline-none border-2 border-transparent focus:border-slate-200 transition-all" value={note} onChange={(e) => setNote(e.target.value)} />
+                                <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full p-5 bg-slate-50 rounded-3xl mb-12 font-bold uppercase text-center outline-none border-2 border-transparent focus:border-slate-200 transition-all" value={note} onChange={(e) => setNote(e.target.value)} />
+                                
+                                <div className="text-center mb-4">
+                                    <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-300">Select Milk Choice</p>
+                                </div>
+
                                 <div className="grid grid-cols-1 gap-3 mb-10">
                                     {milks.filter(m => !m.soldOut).map(m => (
-                                        <button key={m.name} onClick={() => finalizeOrder(m.name)} className="bg-white border-2 border-slate-100 p-6 rounded-[2rem] text-xl font-black uppercase italic hover:border-slate-900 active:scale-95 transition-all shadow-sm">{m.name}</button>
+                                        <button 
+                                            key={m.name} 
+                                            onClick={() => setSelectedMilk(m.name)} 
+                                            className={`border-2 p-6 rounded-[2rem] text-xl font-black uppercase italic active:scale-95 transition-all shadow-sm ${selectedMilk === m.name ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-900 hover:border-slate-900'}`}
+                                        >
+                                            {m.name}
+                                        </button>
                                     ))}
                                 </div>
-                                <button onClick={() => setPendingOrder(null)} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-lg active:scale-95 transition-all">Go Back</button>
+
+                                {selectedMilk ? (
+                                    <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-6 rounded-[2rem] font-black uppercase text-xl tracking-[0.1em] shadow-lg animate-in active:scale-95 transition-all mb-4">Confirm Order</button>
+                                ) : null}
+
+                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); }} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-lg active:scale-95 transition-all">Go Back</button>
                             </div>
                         </div>
                     )}
