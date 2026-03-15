@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Coffee Flow Pro</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .animate-in { animation: slideIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-slate-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const BaristaApp = () => {
+            const initialFlavorList = ['Vanilla', 'Caramel', 'Mocha', 'Matcha', 'Seasonal'];
+            const initialMilkList = ['Whole', 'Oat', 'Almond', 'Skim', 'Creamer'];
+
+            const [orders, setOrders] = useState(() => JSON.parse(localStorage.getItem('coffee-orders')) || []);
+            const [history, setHistory] = useState(() => JSON.parse(localStorage.getItem('coffee-history')) || []);
+            const [outOfStock, setOutOfStock] = useState(() => JSON.parse(localStorage.getItem('coffee-stock')) || []);
+            const [view, setView] = useState('queue');
+            const [customerName, setCustomerName] = useState('');
+            const [pendingOrder, setPendingOrder] = useState(null);
+            const [now, setNow] = useState(Date.now());
+
+            useEffect(() => {
+                localStorage.setItem('coffee-orders', JSON.stringify(orders));
+                localStorage.setItem('coffee-history', JSON.stringify(history));
+                localStorage.setItem('coffee-stock', JSON.stringify(outOfStock));
+            }, [orders, history, outOfStock]);
+
+            useEffect(() => {
+                const interval = setInterval(() => setNow(Date.now()), 1000);
+                return () => clearInterval(interval);
+            }, []);
+
+            const toggleStock = (item) => {
+                setOutOfStock(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]);
+            };
+
+            const initiateOrder = (flavor, temp) => {
+                if (outOfStock.includes(flavor)) return;
+                if (!customerName.trim()) return alert("Enter Customer Name!");
+                let finalFlavor = flavor === 'Custom' ? prompt("Enter Custom Flavor:") : flavor;
+                if (!finalFlavor) return;
+                setPendingOrder({ flavor: finalFlavor, temp, customer: customerName });
+            };
+
+            const finalizeOrder = (milk) => {
+                if (outOfStock.includes(milk)) return;
+                let finalMilk = milk === 'Custom' ? prompt("Enter Custom Milk:") : milk;
+                if (!finalMilk) return;
+                const newOrder = { 
+                    ...pendingOrder, id: Date.now(), startTime: Date.now(), milk: finalMilk, 
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                };
+                setOrders([newOrder, ...orders]);
+                setPendingOrder(null);
+                setCustomerName('');
+            };
+
+            const completeOrder = (id) => {
+                const order = orders.find(o => o.id === id);
+                if (order) {
+                    const waitTimeSeconds = Math.floor((Date.now() - order.startTime) / 1000);
+                    setHistory([{ ...order, waitTimeSeconds }, ...history]);
+                    setOrders(orders.filter(o => o.id !== id));
+                }
+            };
+
+            const exportToCSV = () => {
+                if (history.length === 0) return alert("No history!");
+                const headers = ["Time", "Customer", "Flavor", "Temp", "Milk", "Wait_Seconds"];
+                const rows = history.map(o => [o.timeString, o.customer, o.flavor, o.temp, o.milk, o.waitTimeSeconds]);
+                const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `Coffee_Report.csv`;
+                link.click();
+            };
+
+            return (
+                <div className="p-4 md:p-8 min-h-screen max-w-5xl mx-auto">
+                    <nav className="flex gap-2 mb-6 bg-white p-2 rounded-3xl shadow-sm border border-slate-200">
+                        <button onClick={() => setView('queue')} className={`flex-1 py-4 rounded-2xl font-black transition ${view === 'queue' ? 'bg-orange-500 text-white' : 'text-slate-400'}`}>QUEUE</button>
+                        <button onClick={() => setView('stock')} className={`flex-1 py-4 rounded-2xl font-black transition ${view === 'stock' ? 'bg-slate-800 text-white' : 'text-slate-400'}`}>STOCK</button>
+                        <button onClick={() => setView('stats')} className={`flex-1 py-4 rounded-2xl font-black transition ${view === 'stats' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>STATS</button>
+                    </nav>
+
+                    {view === 'queue' && (
+                        <div>
+                            <input type="text" placeholder="Customer Name..." className="w-full p-6 text-2xl rounded-[30px] shadow-lg mb-6 outline-none focus:ring-4 focus:ring-orange-200" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+                                {initialFlavorList.map(f => (
+                                    <div key={f} className={`bg-white p-4 rounded-[30px] shadow-sm text-center ${outOfStock.includes(f) ? 'opacity-30 grayscale' : ''}`}>
+                                        <p className="font-black mb-2">{f}</p>
+                                        <div className="flex gap-2">
+                                            <button disabled={outOfStock.includes(f)} onClick={() => initiateOrder(f, 'Hot')} className="flex-1 bg-orange-100 text-orange-700 py-2 rounded-lg font-bold text-xs">HOT</button>
+                                            <button disabled={outOfStock.includes(f)} onClick={() => initiateOrder(f, 'Iced')} className="flex-1 bg-blue-100 text-blue-700 py-2 rounded-lg font-bold text-xs">ICED</button>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button onClick={() => initiateOrder('Custom', 'Hot/Iced')} className="bg-slate-800 text-white rounded-[30px] font-black">+ CUSTOM</button>
+                            </div>
+                            <div className="space-y-4">
+                                {orders.map(order => {
+                                    const sec = Math.floor((now - order.startTime) / 1000);
+                                    return (
+                                        <div key={order.id} className={`flex justify-between items-center p-6 rounded-[35px] bg-white shadow border-l-[16px] animate-in ${order.temp === 'Hot' ? 'border-orange-500' : 'border-blue-500'}`}>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-3">
+                                                    <h3 className="text-xl font-black">{order.customer}</h3>
+                                                    <span className={`px-2 py-1 rounded-lg font-mono font-bold text-xs ${sec > 180 ? 'bg-red-500 text-white' : 'bg-slate-100'}`}>
+                                                        {Math.floor(sec/60)}:{(sec%60).toString().padStart(2,'0')}
+                                                    </span>
+                                                </div>
+                                                <p className="text-slate-400 font-bold text-xs uppercase">{order.temp} {order.flavor} w/ {order.milk}</p>
+                                            </div>
+                                            <button onClick={() => completeOrder(order.id)} className="bg-emerald-500 text-white w-14 h-14 rounded-2xl font-black text-xl shadow-lg">✓</button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {view === 'stock' && (
+                        <div className="bg-white p-8 rounded-[40px] shadow-lg">
+                            <h2 className="text-2xl font-black mb-6 uppercase">Inventory Manager</h2>
+                            <div className="grid grid-cols-2 gap-4">
+                                {[...initialFlavorList, ...initialMilkList].map(item => (
+                                    <button key={item} onClick={() => toggleStock(item)} className={`p-4 rounded-2xl font-black border-4 transition ${outOfStock.includes(item) ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-50 border-transparent text-slate-800'}`}>
+                                        {item} {outOfStock.includes(item) ? '(OUT)' : '(IN)'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {view === 'stats' && (
+                        <div className="bg-white p-8 rounded-[40px] shadow-lg">
+                            <div className="flex justify-between mb-8">
+                                <h2 className="text-2xl font-black uppercase tracking-tight">Shift Summary</h2>
+                                <button onClick={exportToCSV} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm">Download CSV</button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-6 bg-slate-50 rounded-3xl">
+                                    <p className="text-slate-400 font-bold text-xs uppercase">Avg Speed</p>
+                                    <p className="text-4xl font-black">{history.length > 0 ? Math.floor(history.reduce((a, b) => a + b.waitTimeSeconds, 0) / history.length) : 0}s</p>
+                                </div>
+                                <div className="p-6 bg-slate-50 rounded-3xl">
+                                    <p className="text-slate-400 font-bold text-xs uppercase">Total Orders</p>
+                                    <p className="text-4xl font-black">{history.length}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {pendingOrder && (
+                        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-white w-full max-w-sm rounded-[40px] p-8 shadow-2xl">
+                                <h2 className="text-center font-black mb-6 uppercase">Select Milk</h2>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {initialMilkList.map(m => (
+                                        <button key={m} disabled={outOfStock.includes(m)} onClick={() => finalizeOrder(m)} className={`p-4 rounded-xl font-bold ${outOfStock.includes(m) ? 'opacity-20 bg-slate-200' : 'bg-slate-50 border'}`}>
+                                            {m}
+                                        </button>
+                                    ))}
+                                    <button onClick={() => finalizeOrder('Custom')} className="bg-slate-800 text-white p-4 rounded-xl font-bold">OTHER</button>
+                                </div>
+                                <button onClick={() => setPendingOrder(null)} className="w-full mt-4 text-slate-400 font-bold">CANCEL</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<BaristaApp />);
+    </script>
+</body>
+</html>
