@@ -88,6 +88,20 @@
                 }
             };
 
+            const statsData = useMemo(() => {
+                const filtered = shiftStatus.active ? history.filter(o => o.completedAt > shiftStatus.startTime) : [];
+                const revenue = filtered.reduce((s, o) => s + (Number(o.price) || 0), 0);
+                const counts = filtered.reduce((a, o) => { a[o.flavor] = (a[o.flavor] || 0) + 1; return a; }, {});
+                
+                let top = "N/A";
+                let max = 0;
+                Object.entries(counts).forEach(([flavor, count]) => {
+                    if (count > max) { max = count; top = flavor; }
+                });
+
+                return { revenue, top, count: filtered.length };
+            }, [history, shiftStatus]);
+
             const finalizeOrder = () => {
                 const id = Date.now();
                 db.ref(`orders/${id}`).set({
@@ -99,9 +113,15 @@
                 setTimeout(() => setShowSuccess(false), 2000);
             };
 
+            const clearHistory = () => {
+                if (confirm("Are you sure? This will delete ALL order history.")) {
+                    db.ref('history').remove();
+                    db.ref('shift').set({ active: false, startTime: 0 });
+                }
+            };
+
             return (
                 <div className="max-w-4xl mx-auto p-4 md:p-8">
-                    {/* BARISTA UI REMAINS FUNCTIONAL AS PER PREVIOUS VERSION */}
                     {appMode === 'barista' && (
                          <nav className="grid grid-cols-4 gap-2 mb-8 bg-white p-2 rounded-3xl soft-shadow border border-slate-100">
                             {['queue', 'history', 'stats', 'settings'].map(v => (
@@ -112,8 +132,74 @@
                         </nav>
                     )}
 
+                    {/* BARISTA VIEW: QUEUE */}
+                    {appMode === 'barista' && view === 'queue' && (
+                        <div className="space-y-4 animate-in">
+                            {orders.length === 0 && <p className="text-center py-20 font-black text-slate-300 uppercase italic">All Caught Up</p>}
+                            {orders.map(o => (
+                                <div key={o.id} className={`flex justify-between items-center p-8 rounded-[3rem] bg-white card-shadow border-l-[16px] ${o.temp === 'HOT' ? 'border-red-500' : 'border-blue-500'}`}>
+                                    <div>
+                                        <h2 className="text-3xl font-black text-slate-800 uppercase italic leading-none">{o.customer}</h2>
+                                        <p className="text-slate-400 font-bold uppercase mt-1">{o.temp} {o.flavor} • {o.milk}</p>
+                                        {o.note && <p className="text-xs bg-amber-50 text-amber-700 p-2 rounded-xl mt-2 font-bold uppercase italic">Note: {o.note}</p>}
+                                    </div>
+                                    <button onClick={() => {
+                                        const now = Date.now();
+                                        db.ref(`history/${o.id}`).set({...o, status:'Completed', completedAt: now, waitTimeSeconds: Math.floor((now - o.startTime)/1000)});
+                                        db.ref(`orders/${o.id}`).remove();
+                                    }} className="bg-emerald-500 text-white w-20 h-20 rounded-3xl text-4xl font-black shadow-lg">✓</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* BARISTA VIEW: HISTORY */}
+                    {appMode === 'barista' && view === 'history' && (
+                        <div className="space-y-3 animate-in pb-12">
+                            {history.length === 0 && <p className="text-center py-20 font-black text-slate-200 uppercase">No History</p>}
+                            {history.slice(0, 30).map(o => (
+                                <div key={o.id} className="bg-white p-6 rounded-[2rem] flex justify-between items-center border border-slate-50 soft-shadow opacity-70">
+                                    <div>
+                                        <p className="font-black text-slate-800 uppercase italic">{o.customer}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase">{o.temp} {o.flavor}</p>
+                                    </div>
+                                    <p className="font-mono text-xs text-slate-300">${Number(o.price).toFixed(2)}</p>
+                                </div>
+                            ))}
+                            <button onClick={clearHistory} className="w-full text-red-300 font-black uppercase text-[10px] mt-8 opacity-50">Clear History</button>
+                        </div>
+                    )}
+
+                    {/* BARISTA VIEW: STATS */}
+                    {appMode === 'barista' && view === 'stats' && (
+                        <div className="space-y-6 animate-in">
+                            <button onClick={() => db.ref('shift').set(shiftStatus.active ? {active:false, startTime:0} : {active:true, startTime:Date.now()})} 
+                                className={`w-full p-8 rounded-[2.5rem] font-black uppercase text-white shadow-xl ${shiftStatus.active ? 'bg-red-500' : 'bg-emerald-500'}`}>
+                                {shiftStatus.active ? 'End Active Shift' : 'Start New Shift'}
+                            </button>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white p-8 rounded-[2.5rem] text-center soft-shadow border"><p className="text-[10px] font-black text-slate-300 uppercase mb-2">Revenue</p><p className="text-3xl font-black text-slate-900">${statsData.revenue.toFixed(2)}</p></div>
+                                <div className="bg-white p-8 rounded-[2.5rem] text-center soft-shadow border"><p className="text-[10px] font-black text-slate-300 uppercase mb-2">Orders</p><p className="text-3xl font-black text-slate-900">{statsData.count}</p></div>
+                                <div className="bg-slate-900 p-8 rounded-[2.5rem] text-center col-span-2 shadow-xl"><p className="text-[10px] font-black text-slate-500 uppercase mb-2 italic">Best Seller</p><p className="text-xl font-black text-white uppercase italic">{statsData.top}</p></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* BARISTA VIEW: SETTINGS */}
                     {appMode === 'barista' && view === 'settings' && (
-                        <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-8 rounded-[3rem] font-black uppercase text-xl shadow-2xl italic tracking-tighter">Launch Kiosk</button>
+                        <div className="space-y-8 animate-in pb-12">
+                            <div className="bg-white p-8 rounded-[3rem] soft-shadow border border-slate-100">
+                                <h2 className="text-2xl font-black mb-6 uppercase italic text-slate-800">Menu & Milks</h2>
+                                <p className="text-xs text-slate-400 mb-6 font-bold">Use this panel to manage availability and add new items.</p>
+                                {menuDrinks.map((d, i) => (
+                                    <div key={i} className="flex items-center gap-3 mb-4 p-4 bg-slate-50 rounded-2xl">
+                                        <input className="flex-1 bg-transparent font-black uppercase text-sm" value={d.name} onChange={(e) => { const n = [...menuDrinks]; n[i].name = e.target.value; db.ref('menu').set(n); }} />
+                                        <button onClick={() => { const n = [...menuDrinks]; n[i].soldOut = !d.soldOut; db.ref('menu').set(n); }} className={`px-4 py-2 rounded-xl font-black text-[10px] ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{d.soldOut ? 'OUT' : 'IN'}</button>
+                                    </div>
+                                ))}
+                            </div>
+                            <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-8 rounded-[3rem] font-black uppercase text-xl shadow-2xl italic tracking-tighter">Launch Kiosk</button>
+                        </div>
                     )}
 
                     {/* KIOSK MODE: HOME */}
@@ -126,7 +212,7 @@
                             <input type="text" placeholder="WHO IS THIS FOR?" className="w-full bg-transparent border-b-8 border-slate-100 p-6 text-5xl font-black uppercase text-center outline-none mb-16 focus:border-slate-900 transition-colors" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
                             <div className="grid grid-cols-1 gap-12">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
-                                    <div key={drink.name} className="bg-white rounded-[4rem] overflow-hidden card-shadow border border-slate-50 transition-transform active:scale-[0.98]">
+                                    <div key={drink.name} className="bg-white rounded-[4rem] overflow-hidden card-shadow border border-slate-50">
                                         {drink.image && <img src={drink.image} className="kiosk-img" />}
                                         <div className="p-12">
                                             <div className="flex justify-between items-baseline mb-10">
@@ -134,8 +220,8 @@
                                                 <span className="text-2xl font-bold text-slate-400 italic bg-slate-50 px-6 py-2 rounded-full">${Number(drink.price).toFixed(2)}</span>
                                             </div>
                                             <div className="flex gap-6">
-                                                <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg active:opacity-90">HOT</button>
-                                                <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg active:opacity-90">ICED</button>
+                                                <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg">HOT</button>
+                                                <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg">ICED</button>
                                             </div>
                                         </div>
                                     </div>
@@ -144,7 +230,7 @@
                         </div>
                     )}
 
-                    {/* KIOSK MODE: CHECKOUT (The "Pleasant" View) */}
+                    {/* KIOSK MODE: CHECKOUT */}
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center p-8 overflow-y-auto">
                             <div className="max-w-xl w-full animate-in text-center py-12">
@@ -152,29 +238,21 @@
                                     <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-sm mb-1">{pendingOrder.temp} SELECTION</p>
                                     <h2 className="text-8xl font-black uppercase italic text-slate-900 leading-none tracking-tighter">{pendingOrder.name}</h2>
                                 </div>
-                                
                                 <div className="space-y-10 mb-12">
                                     <div>
                                         <p className="text-xs font-black uppercase text-slate-400 tracking-[0.2em] mb-6">Choose Milk Type</p>
                                         <div className="grid grid-cols-1 gap-4">
                                             {milks.filter(m => !m.soldOut).map(m => (
-                                                <button key={m.name} onClick={() => setSelectedMilk(m.name)} 
-                                                    className={`py-8 rounded-[2.5rem] text-3xl font-black uppercase italic transition-all duration-300 ${selectedMilk === m.name ? 'bg-slate-900 text-white card-shadow scale-[1.02]' : 'bg-slate-50 text-slate-400 border border-slate-100 hover:bg-slate-100'}`}>
-                                                    {m.name}
-                                                </button>
+                                                <button key={m.name} onClick={() => setSelectedMilk(m.name)} className={`py-8 rounded-[2.5rem] text-3xl font-black uppercase italic transition-all ${selectedMilk === m.name ? 'bg-slate-900 text-white shadow-xl scale-[1.02]' : 'bg-slate-50 text-slate-400 border'}`}>{m.name}</button>
                                             ))}
                                         </div>
                                     </div>
-
                                     {selectedMilk && (
                                         <div className="space-y-10 animate-in">
                                             <div className="text-center">
                                                 <p className="text-xs font-black uppercase text-slate-400 tracking-[0.2em] mb-4">Special Requests?</p>
-                                                <input type="text" placeholder="EG: ICE LEVEL, SWEETNESS LEVEL..." 
-                                                    className="w-full bg-slate-50 p-7 rounded-[2.5rem] text-xl font-bold uppercase border border-slate-100 outline-none text-center focus:bg-white focus:border-slate-300 transition-all" 
-                                                    value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
+                                                <input type="text" placeholder="EG: ICE LEVEL, SWEETNESS LEVEL..." className="w-full bg-slate-50 p-7 rounded-[2.5rem] text-xl font-bold uppercase border border-slate-100 text-center" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
                                             </div>
-                                            
                                             <div className="pt-6">
                                                 <p className="text-xl font-black uppercase text-slate-900 mb-6 italic">Total: ${Number(pendingOrder.price).toFixed(2)}</p>
                                                 <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-10 rounded-[3rem] font-black uppercase text-4xl active:scale-95 transition-all">Confirm Order</button>
@@ -182,14 +260,14 @@
                                         </div>
                                     )}
                                 </div>
-                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] mt-12 hover:text-slate-900 transition-colors">Go Back</button>
+                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-300 font-black uppercase text-xs tracking-[0.4em] mt-12">Go Back</button>
                             </div>
                         </div>
                     )}
 
                     {showSuccess && (
                         <div className="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center animate-in">
-                            <div className="w-32 h-32 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-8 shadow-inner"><span className="text-6xl font-black">✓</span></div>
+                            <div className="w-32 h-32 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mb-8 shadow-inner"><span className="text-6xl font-black">✓</span></div>
                             <h1 className="text-5xl font-black uppercase italic tracking-tighter text-slate-900">ORDER PLACED</h1>
                         </div>
                     )}
