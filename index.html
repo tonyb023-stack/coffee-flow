@@ -21,6 +21,7 @@
         #exit-zone { position: fixed; top: 0; right: 0; width: 120px; height: 120px; z-index: 10000; cursor: pointer; background: transparent; }
         .tight-tracking { letter-spacing: -0.05em; }
         .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); }
+        .kiosk-input:focus { border-color: #0f172a; box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.05); }
     </style>
 </head>
 <body>
@@ -361,19 +362,35 @@
                     )}
 
                     {appMode === 'kiosk' && !pendingOrder && (
-                        <div className="animate-in pt-16 pb-24 text-center">
+                        <div className="animate-in pt-20 pb-24 text-center">
                             <div id="exit-zone" onClick={handleExitLogic}></div>
-                            <h1 className="text-8xl font-black text-slate-900 tight-tracking uppercase italic leading-none mb-20">NEBULOUS</h1>
-                            <div className="max-w-xl mx-auto mb-20 bg-white p-6 rounded-[2.5rem] card-shadow border border-slate-100">
-                                <input type="text" placeholder="WHO IS THIS FOR?" className="w-full bg-transparent p-4 text-4xl font-black uppercase text-center outline-none placeholder:text-slate-200 text-slate-900" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                            <div className="mb-20">
+                                <h1 className="text-8xl font-black text-slate-900 tight-tracking uppercase italic leading-none mb-4">NEBULOUS</h1>
+                                <p className="text-slate-400 font-bold uppercase tracking-[0.4em] text-xs">Self-Service Coffee</p>
                             </div>
-                            <div className="grid grid-cols-1 gap-14">
+                            
+                            <div className="max-w-2xl mx-auto mb-20">
+                                <div className="bg-white p-8 rounded-[3rem] card-shadow border border-slate-50 transition-all">
+                                    <input 
+                                        type="text" 
+                                        placeholder="WHO IS THIS FOR?" 
+                                        className="kiosk-input w-full bg-slate-50 p-6 rounded-[2rem] text-4xl font-black uppercase text-center outline-none placeholder:text-slate-200 text-slate-900 border-2 border-transparent transition-all" 
+                                        value={customerName} 
+                                        onChange={(e) => setCustomerName(e.target.value)} 
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-12 max-w-2xl mx-auto px-4">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
-                                    <div key={drink.name} className="bg-white rounded-[4rem] card-shadow border border-slate-50 p-12 transition-transform active:scale-[0.98]">
-                                        <div className="flex justify-between items-center mb-10"><h3 className="text-5xl font-black text-slate-900 uppercase italic tight-tracking">{drink.name}</h3><span className="text-2xl font-bold text-slate-400 italic bg-slate-50 px-6 py-2 rounded-full">${Number(drink.price).toFixed(2)}</span></div>
+                                    <div key={drink.name} className="bg-white rounded-[4rem] card-shadow border border-slate-50 p-12 transition-all hover:translate-y-[-4px]">
+                                        <div className="flex justify-between items-center mb-10">
+                                            <h3 className="text-5xl font-black text-slate-900 uppercase italic tight-tracking">{drink.name}</h3>
+                                            <span className="text-2xl font-bold text-slate-900 italic bg-slate-100 px-6 py-2 rounded-full">${Number(drink.price).toFixed(2)}</span>
+                                        </div>
                                         <div className="flex gap-6">
-                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg active:brightness-90 transition-all">HOT</button>
-                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg active:brightness-90 transition-all">ICED</button>
+                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg active:brightness-90 active:scale-95 transition-all">HOT</button>
+                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg active:brightness-90 active:scale-95 transition-all">ICED</button>
                                         </div>
                                     </div>
                                 ))}
@@ -384,9 +401,16 @@
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center p-8 overflow-y-auto">
                             <div className="max-w-xl w-full animate-in text-center py-16">
-                                <h2 className="text-7xl font-black uppercase italic mb-14">{pendingOrder.name}</h2>
+                                <div className="mb-12">
+                                    <span className={`text-sm font-black px-4 py-2 rounded-full mb-4 inline-block ${pendingOrder.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
+                                        {pendingOrder.temp}
+                                    </span>
+                                    <h2 className="text-7xl font-black uppercase italic tight-tracking leading-tight">{pendingOrder.name}</h2>
+                                </div>
+
                                 <div className="space-y-16">
                                     <div className="grid grid-cols-1 gap-5">
+                                        <p className="text-slate-300 font-black uppercase text-xs tracking-widest">Select Your Milk</p>
                                         {milks.filter(m => !m.soldOut).map(m => (
                                             <button key={m.name} onClick={() => setSelectedMilk(m.name)} 
                                                 className={`py-8 rounded-[2.8rem] text-3xl font-black uppercase italic duration-300 border-4 ${selectedMilk === m.name ? 'bg-slate-900 text-white border-slate-900 card-shadow scale-[1.03]' : 'bg-white text-slate-900 border-slate-50'}`}>
@@ -394,21 +418,31 @@
                                             </button>
                                         ))}
                                     </div>
+                                    
                                     {selectedMilk && (
                                         <div className="space-y-16 animate-in">
-                                            <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full bg-slate-50 p-8 rounded-[2.8rem] text-xl font-bold uppercase border border-slate-100 outline-none text-center placeholder:text-slate-300" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
+                                            <div className="space-y-4">
+                                                <p className="text-slate-300 font-black uppercase text-xs tracking-widest">Anything Else?</p>
+                                                <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full bg-slate-50 p-8 rounded-[2.8rem] text-xl font-bold uppercase border border-slate-100 outline-none text-center placeholder:text-slate-200" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
+                                            </div>
                                             <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-11 rounded-[3rem] font-black uppercase text-4xl shadow-lg active:scale-[0.97] transition-all">Confirm Order</button>
                                         </div>
                                     )}
                                 </div>
-                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-400 font-black uppercase text-2xl wide-tracking mt-16 active:scale-95 transition-all">Go Back</button>
+                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-300 font-black uppercase text-2xl wide-tracking mt-16 active:text-slate-900 transition-all">Cancel & Start Over</button>
                             </div>
                         </div>
                     )}
 
                     {showSuccess && (
                         <div className="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center animate-in">
-                            <h1 className="text-6xl font-black uppercase italic text-slate-900">ORDER PLACED</h1>
+                            <div className="text-center">
+                                <div className="w-32 h-32 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl">
+                                    <span className="text-white text-6xl font-black">✓</span>
+                                </div>
+                                <h1 className="text-6xl font-black uppercase italic text-slate-900 mb-4">ORDER PLACED</h1>
+                                <p className="text-slate-400 font-bold uppercase tracking-widest">Your coffee will be ready soon!</p>
+                            </div>
                         </div>
                     )}
                 </div>
