@@ -20,7 +20,6 @@
         .card-shadow { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08); }
         #exit-zone { position: fixed; top: 0; right: 0; width: 120px; height: 120px; z-index: 10000; cursor: pointer; background: transparent; }
         .tight-tracking { letter-spacing: -0.05em; }
-        .wide-tracking { letter-spacing: 0.15em; }
         .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); }
     </style>
 </head>
@@ -255,8 +254,16 @@
                                         {history.slice(0, 30).map(o => (
                                             <div key={o.id} className="flex justify-between items-center bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
                                                 <div className="flex-1">
-                                                    <span className="font-black uppercase italic text-lg text-slate-900">{o.customer}</span>
-                                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{o.flavor} • {o.milk}</p>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-black uppercase italic text-lg text-slate-900 leading-none">{o.customer}</span>
+                                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${o.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
+                                                            {o.temp}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 mt-2">
+                                                        <p className="text-sm font-bold text-slate-500 uppercase tracking-widest leading-none">{o.flavor} • {o.milk}</p>
+                                                        <p className="text-sm font-black text-emerald-500 uppercase leading-none">${Number(o.price).toFixed(2)}</p>
+                                                    </div>
                                                 </div>
                                                 <div className="text-right">
                                                     <span className="text-xs font-black text-slate-900 uppercase italic">{o.waitTime}m</span>
