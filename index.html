@@ -410,7 +410,7 @@
 
                                 <div className="space-y-16">
                                     <div className="grid grid-cols-1 gap-5">
-                                        <p className="text-slate-300 font-black uppercase text-xs tracking-widest">Select Your Milk</p>
+                                        <p className="text-slate-900 font-black uppercase text-2xl tracking-[0.15em]">Select Your Milk</p>
                                         {milks.filter(m => !m.soldOut).map(m => (
                                             <button key={m.name} onClick={() => setSelectedMilk(m.name)} 
                                                 className={`py-8 rounded-[2.8rem] text-3xl font-black uppercase italic duration-300 border-4 ${selectedMilk === m.name ? 'bg-slate-900 text-white border-slate-900 card-shadow scale-[1.03]' : 'bg-white text-slate-900 border-slate-50'}`}>
@@ -422,10 +422,13 @@
                                     {selectedMilk && (
                                         <div className="space-y-16 animate-in">
                                             <div className="space-y-4">
-                                                <p className="text-slate-300 font-black uppercase text-xs tracking-widest">Anything Else?</p>
+                                                <p className="text-slate-900 font-black uppercase text-2xl tracking-[0.15em]">Anything Else?</p>
                                                 <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full bg-slate-50 p-8 rounded-[2.8rem] text-xl font-bold uppercase border border-slate-100 outline-none text-center placeholder:text-slate-200" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
                                             </div>
-                                            <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-11 rounded-[3rem] font-black uppercase text-4xl shadow-lg active:scale-[0.97] transition-all">Confirm Order</button>
+                                            <div className="pt-8">
+                                                <p className="text-emerald-500 font-black text-4xl mb-4 italic tracking-tighter">TOTAL: ${Number(pendingOrder.price).toFixed(2)}</p>
+                                                <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-11 rounded-[3rem] font-black uppercase text-4xl shadow-lg active:scale-[0.97] transition-all">Confirm Order</button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
