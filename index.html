@@ -43,6 +43,25 @@
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
+        // Separate component for the timer to manage its own tick interval
+        const OrderTimer = ({ startTime }) => {
+            const [elapsed, setElapsed] = useState(0);
+
+            useEffect(() => {
+                const calculate = () => setElapsed(Math.round((Date.now() - startTime) / 60000));
+                calculate();
+                const interval = setInterval(calculate, 30000); // Update every 30 seconds
+                return () => clearInterval(interval);
+            }, [startTime]);
+
+            return (
+                <div className="text-right ml-4">
+                    <span className="text-xl font-black text-slate-900 uppercase italic leading-none">{elapsed}m</span>
+                    <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">WAITING</p>
+                </div>
+            );
+        };
+
         const BaristaApp = () => {
             const [view, setView] = useState('queue');
             const [appMode, setAppMode] = useState(() => localStorage.getItem('app-mode') || 'barista');
@@ -207,12 +226,21 @@
                                 <div className="grid grid-cols-1 gap-6 animate-in">
                                     {orders.map(o => (
                                         <div key={o.id} className={`bg-white p-8 rounded-[2.5rem] border-l-[12px] soft-shadow flex justify-between items-center transition-all ${o.temp === 'HOT' ? 'border-red-500' : 'border-blue-500'}`}>
-                                            <div>
-                                                <h3 className="text-4xl font-black uppercase italic tracking-tighter text-slate-900">{o.customer}</h3>
-                                                <p className="text-slate-400 font-bold uppercase text-sm tracking-widest mt-1">{o.flavor} • {o.milk}</p>
+                                            <div className="flex-1">
+                                                <h3 className="text-3xl font-black uppercase italic tracking-tighter text-slate-900 mb-1">{o.customer}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${o.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
+                                                        {o.temp}
+                                                    </span>
+                                                    <p className="text-slate-500 font-bold uppercase text-lg tracking-widest leading-none">{o.flavor} • {o.milk}</p>
+                                                </div>
                                                 {o.note && <div className="mt-3 inline-block bg-emerald-50 px-4 py-1 rounded-full"><p className="text-emerald-500 font-black text-xs italic uppercase">"{o.note}"</p></div>}
                                             </div>
-                                            <button onClick={() => completeOrder(o)} className="w-20 h-20 bg-slate-900 text-white rounded-[1.5rem] font-black text-3xl hover:scale-105 active:scale-95 transition-all shadow-xl">✓</button>
+                                            
+                                            <div className="flex items-center gap-8">
+                                                <OrderTimer startTime={o.startTime} />
+                                                <button onClick={() => completeOrder(o)} className="w-20 h-20 bg-slate-900 text-white rounded-[1.5rem] font-black text-3xl hover:scale-105 active:scale-95 transition-all shadow-xl">✓</button>
+                                            </div>
                                         </div>
                                     ))}
                                     {orders.length === 0 && <div className="text-center py-20 text-slate-200 font-black uppercase italic text-4xl">No Orders</div>}
