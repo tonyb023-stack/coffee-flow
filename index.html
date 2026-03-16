@@ -21,6 +21,7 @@
         #exit-zone { position: fixed; top: 0; right: 0; width: 120px; height: 120px; z-index: 10000; cursor: pointer; background: transparent; }
         .tight-tracking { letter-spacing: -0.05em; }
         .wide-tracking { letter-spacing: 0.15em; }
+        .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); }
     </style>
 </head>
 <body>
@@ -50,6 +51,7 @@
             const [menuDrinks, setMenuDrinks] = useState([]);
             const [milks, setMilks] = useState([]);
             const [shiftStatus, setShiftStatus] = useState({ active: false, startTime: 0 });
+            const [showShiftModal, setShowShiftModal] = useState(false);
             
             const [customerName, setCustomerName] = useState('');
             const [pendingOrder, setPendingOrder] = useState(null);
@@ -84,8 +86,16 @@
             };
 
             const toggleShift = () => {
-                const newStatus = !shiftStatus.active;
-                db.ref('shift').set({ active: newStatus, startTime: newStatus ? Date.now() : 0 });
+                if (shiftStatus.active) {
+                    setShowShiftModal(true);
+                } else {
+                    db.ref('shift').set({ active: true, startTime: Date.now() });
+                }
+            };
+
+            const confirmEndShift = () => {
+                db.ref('shift').set({ active: false, startTime: 0 });
+                setShowShiftModal(false);
             };
 
             const clearHistory = () => { if(confirm("Clear all history?")) db.ref('history').remove(); };
@@ -104,8 +114,8 @@
 
             const exportCSV = () => {
                 const shiftOrders = history.filter(o => o.completedAt > shiftStatus.startTime);
-                let csv = "Customer,Flavor,Milk,Price,Wait Time\n";
-                shiftOrders.forEach(o => { csv += `${o.customer},${o.flavor},${o.milk},${o.price},${o.waitTime}m\n`; });
+                let csv = "Customer,Flavor,Temp,Milk,Price,Wait Time\n";
+                shiftOrders.forEach(o => { csv += `${o.customer},${o.flavor},${o.temp},${o.milk},${o.price},${o.waitTime}m\n`; });
                 const blob = new Blob([csv], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -202,10 +212,15 @@
                                     <div className="space-y-6">
                                         {history.slice(0, 30).map(o => (
                                             <div key={o.id} className="flex justify-between items-center bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                                                <div>
-                                                    <span className="font-black uppercase italic text-lg text-slate-900 leading-none">{o.customer}</span>
-                                                    <div className="flex gap-3 mt-1">
-                                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{o.flavor}</p>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-black uppercase italic text-lg text-slate-900 leading-none">{o.customer}</span>
+                                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${o.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
+                                                            {o.temp}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex gap-3 mt-1.5">
+                                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{o.flavor} • {o.milk}</p>
                                                         <p className="text-[10px] text-emerald-500 font-black uppercase">${Number(o.price).toFixed(2)}</p>
                                                     </div>
                                                 </div>
@@ -249,6 +264,20 @@
                                         </div>
                                         <button onClick={exportCSV} className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] pt-8 w-full hover:text-slate-900 transition-colors">Export CSV Report</button>
                                     </div>
+
+                                    {/* CONFIRMATION MODAL */}
+                                    {showShiftModal && (
+                                        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 modal-backdrop">
+                                            <div className="bg-white rounded-[3rem] p-10 max-w-sm w-full animate-in text-center shadow-2xl">
+                                                <h2 className="text-3xl font-black uppercase italic tight-tracking text-slate-900 mb-4">End Shift?</h2>
+                                                <p className="text-slate-400 font-bold mb-8">This will reset your current shift metrics. Make sure to export your report first if needed.</p>
+                                                <div className="flex flex-col gap-3">
+                                                    <button onClick={confirmEndShift} className="bg-red-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all">Confirm End Shift</button>
+                                                    <button onClick={() => setShowShiftModal(false)} className="bg-slate-100 text-slate-400 py-5 rounded-2xl font-black uppercase tracking-widest text-sm active:scale-95 transition-all">Cancel</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
