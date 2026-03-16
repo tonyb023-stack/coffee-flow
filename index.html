@@ -366,7 +366,6 @@
                             <div id="exit-zone" onClick={handleExitLogic}></div>
                             <div className="mb-20">
                                 <h1 className="text-8xl font-black text-slate-900 tight-tracking uppercase italic leading-none mb-4">NEBULOUS</h1>
-                                <p className="text-slate-400 font-bold uppercase tracking-[0.4em] text-xs">Self-Service Coffee</p>
                             </div>
                             
                             <div className="max-w-2xl mx-auto mb-20">
@@ -406,8 +405,7 @@
                                         {pendingOrder.temp}
                                     </span>
                                     <h2 className="text-7xl font-black uppercase italic tight-tracking leading-tight">{pendingOrder.name}</h2>
-                                </div>
-
+                                }
                                 <div className="space-y-16">
                                     <div className="grid grid-cols-1 gap-5">
                                         <p className="text-slate-900 font-black uppercase text-2xl tracking-[0.15em]">Select Your Milk</p>
@@ -426,7 +424,8 @@
                                                 <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full bg-slate-50 p-8 rounded-[2.8rem] text-xl font-bold uppercase border border-slate-100 outline-none text-center placeholder:text-slate-200" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
                                             </div>
                                             <div className="pt-8">
-                                                <p className="text-emerald-500 font-black text-4xl mb-4 italic tracking-tighter">TOTAL: ${Number(pendingOrder.price).toFixed(2)}</p>
+                                                {/* Text color changed to black */}
+                                                <p className="text-black font-black text-4xl mb-4 italic tracking-tighter">TOTAL: ${Number(pendingOrder.price).toFixed(2)}</p>
                                                 <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-11 rounded-[3rem] font-black uppercase text-4xl shadow-lg active:scale-[0.97] transition-all">Confirm Order</button>
                                             </div>
                                         </div>
