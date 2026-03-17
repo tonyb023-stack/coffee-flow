@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nebulous Coffee Pro - Full Restore</title>
+    <title>Nebulous Coffee Pro</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -16,7 +16,6 @@
         .animate-in { animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         #exit-zone { position: fixed; top: 0; right: 0; width: 120px; height: 120px; z-index: 10000; cursor: pointer; }
-        .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); }
     </style>
 </head>
 <body>
@@ -25,10 +24,6 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
 
-        /**
-         * 🎨 THE SKIN ENGINE
-         * Edit these values to change the look without touching the logic below.
-         */
         const THEME = {
             pageBg: "#fcfdfe",
             card: "bg-white border border-slate-50 shadow-2xl shadow-slate-200/50",
@@ -57,6 +52,17 @@
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
+        const TempBadge = ({ temp, size = "small" }) => {
+            const isHot = temp === 'HOT';
+            const styles = isHot ? "bg-red-100 text-red-500" : "bg-blue-100 text-blue-500";
+            const padding = size === "small" ? "px-2 py-0.5 text-[8px]" : "px-4 py-1 text-[10px]";
+            return (
+                <span className={`${styles} ${padding} rounded-full font-black uppercase tracking-widest leading-none`}>
+                    {temp}
+                </span>
+            );
+        };
+
         const OrderTimer = ({ startTime }) => {
             const [elapsed, setElapsed] = useState(0);
             useEffect(() => {
@@ -81,13 +87,13 @@
             const [menuDrinks, setMenuDrinks] = useState([]);
             const [milks, setMilks] = useState([]);
             const [shiftStatus, setShiftStatus] = useState({ active: false, startTime: 0 });
-            const [showShiftModal, setShowShiftModal] = useState(false);
             const [customerName, setCustomerName] = useState('');
             const [pendingOrder, setPendingOrder] = useState(null);
             const [selectedMilk, setSelectedMilk] = useState(null);
             const [specialRequest, setSpecialRequest] = useState('');
             const [showSuccess, setShowSuccess] = useState(false);
             const clickRef = useRef({ count: 0, last: 0 });
+            const inputRefs = useRef({});
 
             useEffect(() => {
                 document.body.style.backgroundColor = THEME.pageBg;
@@ -106,7 +112,6 @@
                 return () => Object.values(refs).forEach(r => r.off());
             }, []);
 
-            // --- ALL VERSION 2 FUNCTIONS RESTORED ---
             const completeOrder = (order) => {
                 const completedAt = Date.now();
                 db.ref(`history/${order.id}`).set({ ...order, completedAt, waitTime: Math.round((completedAt - order.startTime) / 60000), status: 'Completed' });
@@ -114,21 +119,26 @@
             };
 
             const toggleShift = () => {
-                if (shiftStatus.active) setShowShiftModal(true);
+                if (shiftStatus.active && confirm("End your shift?")) db.ref('shift').set({ active: false, startTime: 0 });
                 else db.ref('shift').set({ active: true, startTime: Date.now() });
             };
-
-            const confirmEndShift = () => {
-                db.ref('shift').set({ active: false, startTime: 0 });
-                setShowShiftModal(false);
-            };
-
-            const clearHistory = () => { if(confirm("Clear all history?")) db.ref('history').remove(); };
 
             const updateItem = (path, index, field, value) => {
                 const data = path === 'menu' ? [...menuDrinks] : [...milks];
                 data[index][field] = value;
                 db.ref(path).set(data);
+            };
+
+            const addItem = (path) => {
+                const data = path === 'menu' ? [...menuDrinks] : [...milks];
+                const newItem = path === 'menu' ? { name: "", price: "", soldOut: false } : { name: "", soldOut: false };
+                const newIndex = data.length;
+                db.ref(path).set([...data, newItem]).then(() => {
+                    setTimeout(() => {
+                        const key = `${path}-${newIndex}`;
+                        if (inputRefs.current[key]) inputRefs.current[key].focus();
+                    }, 100);
+                });
             };
 
             const deleteItem = (path, index) => {
@@ -139,12 +149,12 @@
 
             const exportCSV = (timeFrame) => {
                 const now = Date.now();
-                let filtered = [];
-                if (timeFrame === 'shift') filtered = history.filter(o => o.completedAt > shiftStatus.startTime);
-                else if (timeFrame === '24h') filtered = history.filter(o => o.completedAt > (now - 86400000));
-                else if (timeFrame === 'week') filtered = history.filter(o => o.completedAt > (now - 604800000));
-                else filtered = history.filter(o => o.completedAt > (now - 2592000000));
-
+                let filtered = history.filter(o => {
+                    if (timeFrame === 'shift') return o.completedAt > shiftStatus.startTime;
+                    if (timeFrame === '24h') return o.completedAt > (now - 86400000);
+                    if (timeFrame === 'week') return o.completedAt > (now - 604800000);
+                    return o.completedAt > (now - 2592000000);
+                });
                 let csv = "Customer,Flavor,Temp,Milk,Price,Wait Time,Date\n";
                 filtered.forEach(o => { csv += `${o.customer},${o.flavor},${o.temp},${o.milk},${o.price},${o.waitTime}m,${new Date(o.completedAt).toLocaleString()}\n`; });
                 const blob = new Blob([csv], { type: 'text/csv' });
@@ -213,9 +223,12 @@
                                     {orders.map(o => (
                                         <div key={o.id} className={`${THEME.card} p-8 ${THEME.radius} border-l-[12px] flex justify-between items-center ${o.temp === 'HOT' ? 'border-red-500' : 'border-blue-500'}`}>
                                             <div className="flex-1">
-                                                <h3 className={`text-3xl font-black uppercase italic tracking-tighter ${THEME.textMain}`}>{o.customer}</h3>
-                                                <p className={`${THEME.textMuted} font-bold uppercase text-lg tracking-widest`}>{o.flavor} • {o.milk}</p>
-                                                {o.note && <p className="mt-2 text-emerald-500 font-black text-xs italic uppercase">"{o.note}"</p>}
+                                                <h3 className={`text-3xl font-black uppercase italic tracking-tighter ${THEME.textMain} leading-none mb-1`}>{o.customer}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <TempBadge temp={o.temp} />
+                                                    <p className={`${THEME.textMuted} font-bold uppercase text-lg tracking-widest leading-none`}>{o.flavor} • {o.milk}</p>
+                                                </div>
+                                                {o.note && <p className="mt-3 text-emerald-500 font-black text-xs italic uppercase leading-none">"{o.note}"</p>}
                                             </div>
                                             <div className="flex items-center gap-8">
                                                 <OrderTimer startTime={o.startTime} />
@@ -231,14 +244,17 @@
                                 <div className={`${THEME.card} ${THEME.radius} p-10 animate-in`}>
                                     <div className="flex justify-between items-center mb-10">
                                         <h2 className={`font-black uppercase italic text-2xl ${THEME.textMain}`}>Order History</h2>
-                                        <button onClick={clearHistory} className="text-[10px] font-black uppercase text-red-500 tracking-widest bg-red-50 px-5 py-2 rounded-full">Clear History</button>
+                                        <button onClick={() => {if(confirm("Clear history?")) db.ref('history').remove();}} className="text-[10px] font-black uppercase text-red-500 tracking-widest bg-red-50 px-5 py-2 rounded-full">Clear History</button>
                                     </div>
                                     <div className="space-y-4">
                                         {history.slice(0, 15).map(o => (
                                             <div key={o.id} className="flex justify-between items-center bg-slate-50 p-6 rounded-3xl">
                                                 <div className="flex-1">
-                                                    <span className={`font-black uppercase italic text-lg ${THEME.textMain}`}>{o.customer}</span>
-                                                    <p className={`text-sm font-bold ${THEME.textMuted} uppercase`}>{o.flavor} • {o.milk}</p>
+                                                    <span className={`font-black uppercase italic text-lg ${THEME.textMain} leading-none`}>{o.customer}</span>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <TempBadge temp={o.temp} />
+                                                        <p className={`text-sm font-bold ${THEME.textMuted} uppercase`}>{o.flavor} • {o.milk}</p>
+                                                    </div>
                                                 </div>
                                                 <span className={`text-xs font-black ${THEME.textMain}`}>{o.waitTime}m</span>
                                             </div>
@@ -269,15 +285,6 @@
                                             ))}
                                         </div>
                                     </div>
-                                    {showShiftModal && (
-                                        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 modal-backdrop">
-                                            <div className="bg-white rounded-[3rem] p-10 max-w-sm w-full text-center shadow-2xl animate-in">
-                                                <h2 className="text-3xl font-black uppercase italic mb-6">End Shift?</h2>
-                                                <button onClick={confirmEndShift} className="w-full bg-red-500 text-white py-5 rounded-2xl font-black uppercase mb-3">Confirm</button>
-                                                <button onClick={() => setShowShiftModal(false)} className="w-full bg-slate-100 text-slate-400 py-5 rounded-2xl font-black uppercase">Cancel</button>
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
@@ -286,13 +293,16 @@
                                     <div className={`${THEME.card} p-8 ${THEME.radius}`}>
                                         <div className="flex justify-between items-center mb-6">
                                             <h3 className="font-black uppercase italic">Menu Editor</h3>
-                                            <button onClick={() => db.ref('menu').set([...menuDrinks, { name: "NEW", price: 5, soldOut: false }])} className="bg-slate-900 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase">+ Add</button>
+                                            <button onClick={() => addItem('menu')} className="bg-slate-900 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase">+ Add Drink</button>
                                         </div>
                                         <div className="space-y-3">
                                             {menuDrinks.map((d, i) => (
                                                 <div key={i} className="flex gap-2 bg-slate-50 p-2 rounded-2xl items-center">
-                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs" value={d.name} onChange={e => updateItem('menu', i, 'name', e.target.value)} />
-                                                    <input className="w-16 bg-white p-3 rounded-xl font-bold text-xs" type="number" value={d.price} onChange={e => updateItem('menu', i, 'price', e.target.value)} />
+                                                    <input ref={el => inputRefs.current[`menu-${i}`] = el} className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs outline-none" placeholder="DRINK NAME" value={d.name} onChange={e => updateItem('menu', i, 'name', e.target.value)} />
+                                                    <div className="flex items-center bg-white rounded-xl px-3 h-full">
+                                                        <span className="text-slate-400 font-black text-xs mr-1">$</span>
+                                                        <input className="w-14 p-3 bg-transparent font-bold text-xs outline-none" type="number" placeholder="0.00" value={d.price} onChange={e => updateItem('menu', i, 'price', e.target.value)} />
+                                                    </div>
                                                     <button onClick={() => updateItem('menu', i, 'soldOut', !d.soldOut)} className={`px-4 py-3 rounded-xl text-[9px] font-black uppercase ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{d.soldOut ? 'OUT' : 'IN'}</button>
                                                     <button onClick={() => deleteItem('menu', i)} className="p-2 text-red-400">✕</button>
                                                 </div>
@@ -302,19 +312,19 @@
                                     <div className={`${THEME.card} p-8 ${THEME.radius}`}>
                                         <div className="flex justify-between items-center mb-6">
                                             <h3 className="font-black uppercase italic">Milk Editor</h3>
-                                            <button onClick={() => db.ref('milks').set([...milks, { name: "NEW", soldOut: false }])} className="bg-slate-900 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase">+ Add</button>
+                                            <button onClick={() => addItem('milks')} className="bg-slate-900 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase">+ Add Milk</button>
                                         </div>
                                         <div className="space-y-3">
                                             {milks.map((m, i) => (
                                                 <div key={i} className="flex gap-2 bg-slate-50 p-2 rounded-2xl items-center">
-                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs" value={m.name} onChange={e => updateItem('milks', i, 'name', e.target.value)} />
+                                                    <input ref={el => inputRefs.current[`milks-${i}`] = el} className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs outline-none" placeholder="MILK NAME" value={m.name} onChange={e => updateItem('milks', i, 'name', e.target.value)} />
                                                     <button onClick={() => updateItem('milks', i, 'soldOut', !m.soldOut)} className={`px-4 py-3 rounded-xl text-[9px] font-black uppercase ${m.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{m.soldOut ? 'OUT' : 'IN'}</button>
                                                     <button onClick={() => deleteItem('milks', i)} className="p-2 text-red-400">✕</button>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
-                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-10 rounded-[3rem] font-black uppercase text-2xl shadow-2xl italic tracking-tighter">Launch Kiosk</button>
+                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-10 rounded-[3rem] font-black uppercase text-2xl shadow-2xl italic tracking-tighter">Launch Kiosk Mode</button>
                                 </div>
                             )}
                         </div>
@@ -323,13 +333,13 @@
                     {appMode === 'kiosk' && !pendingOrder && (
                         <div className="animate-in text-center pt-12">
                             <div id="exit-zone" onClick={handleExitLogic}></div>
-                            <h1 className={`text-7xl font-black ${THEME.textMain} uppercase italic mb-12 tracking-tighter`}>NEBULOUS</h1>
+                            <h1 className={`text-7xl font-black ${THEME.textMain} uppercase italic mb-12 tracking-tighter leading-none`}>NEBULOUS</h1>
                             <div className={`${THEME.card} p-6 ${THEME.radius} max-w-2xl mx-auto mb-12`}>
-                                <input type="text" placeholder="YOUR NAME?" className="w-full bg-slate-50 p-6 rounded-3xl text-3xl font-black uppercase text-center outline-none" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                                <input type="text" placeholder="WHO IS THIS FOR?" className="w-full bg-slate-50 p-6 rounded-3xl text-3xl font-black uppercase text-center outline-none" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto px-4">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
-                                    <div key={drink.name} className={`${THEME.card} p-8 ${THEME.radius} text-left`}>
+                                    <div key={drink.name} className={`${THEME.card} p-8 ${THEME.radius} text-left flex flex-col justify-between`}>
                                         <div className="flex justify-between items-start mb-6">
                                             <h3 className="text-2xl font-black uppercase italic leading-tight">{drink.name}</h3>
                                             <span className="text-sm font-bold bg-slate-100 px-3 py-1 rounded-full">${Number(drink.price).toFixed(2)}</span>
@@ -347,7 +357,10 @@
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center p-8 overflow-y-auto">
                             <div className="max-w-xl w-full text-center py-12 animate-in">
-                                <h2 className="text-6xl font-black uppercase italic mb-12">{pendingOrder.name}</h2>
+                                <div className="mb-4">
+                                    <TempBadge temp={pendingOrder.temp} size="large" />
+                                </div>
+                                <h2 className="text-6xl font-black uppercase italic mb-12 leading-none">{pendingOrder.name}</h2>
                                 <div className="space-y-12">
                                     <div className="grid grid-cols-1 gap-3">
                                         <p className={`font-black uppercase text-xl ${THEME.textMain} ${THEME.instructionUnderline}`}>SELECT YOUR MILK</p>
@@ -372,7 +385,7 @@
                             <div className="bg-emerald-500 w-32 h-32 rounded-full flex items-center justify-center mb-8 shadow-2xl">
                                 <span className="text-white text-6xl font-black">✓</span>
                             </div>
-                            <h1 className="text-5xl font-black uppercase italic tracking-tighter text-slate-900">SUCCESS!</h1>
+                            <h1 className="text-5xl font-black uppercase italic tracking-tighter text-slate-900 leading-none">ORDER PLACED</h1>
                         </div>
                     )}
                 </div>
