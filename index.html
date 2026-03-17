@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nebulous Coffee Pro - Skinnable</title>
+    <title>Nebulous Coffee Pro - Fully Modular</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; transition: all 0.4s ease; }
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.4s ease; }
         .animate-in { animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         #exit-zone { position: fixed; top: 0; right: 0; width: 120px; height: 120px; z-index: 10000; cursor: pointer; }
@@ -26,6 +26,7 @@
 
         /**
          * 🎨 THE SKIN ENGINE
+         * Edit these to change the look without breaking the Barista tools.
          */
         const THEME = {
             bgMain: "#fcfdfe",
@@ -37,7 +38,7 @@
             shadow: "shadow-2xl shadow-slate-200/50",
             fontPrimary: "text-slate-900",
             fontSecondary: "text-slate-400",
-            instructionStyle: "underline decoration-2 underline-offset-8" // Added for the prompt request
+            instructionStyle: "underline decoration-2 underline-offset-8" 
         };
 
         const firebaseConfig = {
@@ -76,7 +77,6 @@
             const [menuDrinks, setMenuDrinks] = useState([]);
             const [milks, setMilks] = useState([]);
             const [shiftStatus, setShiftStatus] = useState({ active: false, startTime: 0 });
-            const [showShiftModal, setShowShiftModal] = useState(false);
             const [customerName, setCustomerName] = useState('');
             const [pendingOrder, setPendingOrder] = useState(null);
             const [selectedMilk, setSelectedMilk] = useState(null);
@@ -101,15 +101,24 @@
                 return () => Object.values(refs).forEach(r => r.off());
             }, []);
 
+            // --- FUNCTIONAL METHODS ---
             const completeOrder = (order) => {
                 const completedAt = Date.now();
                 db.ref(`history/${order.id}`).set({ ...order, completedAt, waitTime: Math.round((completedAt - order.startTime) / 60000), status: 'Completed' });
                 db.ref(`orders/${order.id}`).remove();
             };
 
-            const toggleShift = () => {
-                if (shiftStatus.active) setShowShiftModal(true);
-                else db.ref('shift').set({ active: true, startTime: Date.now() });
+            const updateItem = (path, index, field, value) => {
+                const data = path === 'menu' ? [...menuDrinks] : [...milks];
+                data[index][field] = value;
+                db.ref(path).set(data);
+            };
+
+            const deleteItem = (path, index) => {
+                if (!confirm("Are you sure?")) return;
+                const data = path === 'menu' ? [...menuDrinks] : [...milks];
+                const filtered = data.filter((_, i) => i !== index);
+                db.ref(path).set(filtered);
             };
 
             const finalizeOrder = () => {
@@ -137,10 +146,7 @@
             const shiftStats = useMemo(() => {
                 const activeOrders = history.filter(o => o.completedAt > shiftStatus.startTime);
                 const revenue = activeOrders.reduce((acc, o) => acc + Number(o.price), 0);
-                const drinkCounts = {};
-                activeOrders.forEach(o => { drinkCounts[o.flavor] = (drinkCounts[o.flavor] || 0) + 1; });
-                const topDrink = Object.keys(drinkCounts).reduce((a, b) => drinkCounts[a] > drinkCounts[b] ? a : b, "N/A");
-                return { revenue, topDrink, count: activeOrders.length };
+                return { revenue, count: activeOrders.length };
             }, [history, shiftStatus]);
 
             return (
@@ -161,33 +167,70 @@
                                         <div key={o.id} className={`${THEME.cardBg} p-8 ${THEME.radius} border-l-[12px] ${THEME.shadow} flex justify-between items-center transition-all ${o.temp === 'HOT' ? 'border-red-500' : 'border-blue-500'}`}>
                                             <div className="flex-1">
                                                 <h3 className={`text-3xl font-black uppercase italic tracking-tighter ${THEME.fontPrimary} mb-1`}>{o.customer}</h3>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${o.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>{o.temp}</span>
-                                                    <p className={`${THEME.fontSecondary} font-bold uppercase text-lg tracking-widest leading-none`}>{o.flavor} • {o.milk}</p>
-                                                </div>
+                                                <p className={`${THEME.fontSecondary} font-bold uppercase text-lg tracking-widest`}>{o.flavor} • {o.milk}</p>
                                             </div>
                                             <div className="flex items-center gap-8">
                                                 <OrderTimer startTime={o.startTime} />
-                                                <button onClick={() => completeOrder(o)} className={`w-20 h-20 ${THEME.accent} ${THEME.accentText} rounded-3xl font-black text-3xl hover:scale-105 active:scale-95 transition-all shadow-xl`}>✓</button>
+                                                <button onClick={() => completeOrder(o)} className={`w-20 h-20 ${THEME.accent} ${THEME.accentText} rounded-3xl font-black text-3xl shadow-xl active:scale-95 transition-transform`}>✓</button>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             )}
 
+                            {view === 'settings' && (
+                                <div className="space-y-8 animate-in pb-20">
+                                    <div className={`${THEME.cardBg} p-8 ${THEME.radius} ${THEME.shadow}`}>
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className={`font-black uppercase italic ${THEME.fontPrimary}`}>Menu Management</h3>
+                                            <button onClick={() => db.ref('menu').set([...menuDrinks, { name: "NEW DRINK", price: 5, soldOut: false }])} className={`${THEME.accent} ${THEME.accentText} px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest`}>+ Add Drink</button>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {menuDrinks.map((d, i) => (
+                                                <div key={i} className="flex gap-2 bg-slate-50 p-2 rounded-2xl items-center">
+                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs outline-none" value={d.name} onChange={e => updateItem('menu', i, 'name', e.target.value)} />
+                                                    <div className="bg-white px-3 py-3 rounded-xl font-bold text-xs flex items-center">
+                                                        <span className="mr-1">$</span>
+                                                        <input className="w-10 outline-none" type="number" value={d.price} onChange={e => updateItem('menu', i, 'price', e.target.value)} />
+                                                    </div>
+                                                    <button onClick={() => updateItem('menu', i, 'soldOut', !d.soldOut)} className={`px-4 py-3 rounded-xl text-[9px] font-black uppercase ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{d.soldOut ? 'OUT' : 'IN'}</button>
+                                                    <button onClick={() => deleteItem('menu', i)} className="p-3 text-red-400">✕</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className={`${THEME.cardBg} p-8 ${THEME.radius} ${THEME.shadow}`}>
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className={`font-black uppercase italic ${THEME.fontPrimary}`}>Milk Options</h3>
+                                            <button onClick={() => db.ref('milks').set([...milks, { name: "NEW MILK", soldOut: false }])} className={`${THEME.accent} ${THEME.accentText} px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest`}>+ Add Milk</button>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {milks.map((m, i) => (
+                                                <div key={i} className="flex gap-2 bg-slate-50 p-2 rounded-2xl items-center">
+                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs outline-none" value={m.name} onChange={e => updateItem('milks', i, 'name', e.target.value)} />
+                                                    <button onClick={() => updateItem('milks', i, 'soldOut', !m.soldOut)} className={`px-4 py-3 rounded-xl text-[9px] font-black uppercase ${m.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{m.soldOut ? 'OUT' : 'IN'}</button>
+                                                    <button onClick={() => deleteItem('milks', i)} className="p-3 text-red-400">✕</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className={`w-full ${THEME.accent} ${THEME.accentText} p-10 ${THEME.radius} font-black uppercase text-2xl italic tracking-tighter shadow-xl`}>Launch Kiosk</button>
+                                </div>
+                            )}
+
                             {view === 'history' && (
                                 <div className={`${THEME.cardBg} ${THEME.radius} p-10 ${THEME.shadow} animate-in`}>
                                     <h2 className={`font-black uppercase italic text-2xl mb-10 ${THEME.fontPrimary}`}>History</h2>
-                                    <div className="space-y-6">
+                                    <div className="space-y-4">
                                         {history.slice(0, 15).map(o => (
-                                            <div key={o.id} className="flex justify-between items-center bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
+                                            <div key={o.id} className="flex justify-between items-center bg-slate-50 p-6 rounded-3xl">
                                                 <div className="flex-1">
                                                     <span className={`font-black uppercase italic text-lg ${THEME.fontPrimary}`}>{o.customer}</span>
-                                                    <p className={`text-sm font-bold ${THEME.fontSecondary} uppercase tracking-widest`}>{o.flavor} • {o.milk}</p>
+                                                    <p className={`text-sm font-bold ${THEME.fontSecondary} uppercase`}>{o.flavor} • {o.milk}</p>
                                                 </div>
-                                                <div className="text-right">
-                                                    <span className={`text-xs font-black ${THEME.fontPrimary} uppercase italic`}>{o.waitTime}m</span>
-                                                </div>
+                                                <span className={`text-xs font-black ${THEME.fontPrimary}`}>{o.waitTime}m</span>
                                             </div>
                                         ))}
                                     </div>
@@ -196,39 +239,24 @@
 
                             {view === 'stats' && (
                                 <div className={`${THEME.cardBg} p-10 ${THEME.radius} ${THEME.shadow} animate-in text-center`}>
-                                    <button onClick={toggleShift} className={`mb-10 px-12 py-5 rounded-full font-black uppercase tracking-widest text-sm transition-all ${shiftStatus.active ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
-                                        {shiftStatus.active ? 'End Shift' : 'Start Shift'}
-                                    </button>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div><p className={`text-[9px] ${THEME.fontSecondary} font-bold uppercase mb-1`}>Revenue</p><p className="text-xl font-black">${shiftStats.revenue.toFixed(2)}</p></div>
-                                        <div><p className={`text-[9px] ${THEME.fontSecondary} font-bold uppercase mb-1`}>Top Item</p><p className="text-xl font-black uppercase italic">{shiftStats.topDrink}</p></div>
-                                        <div><p className={`text-[9px] ${THEME.fontSecondary} font-bold uppercase mb-1`}>Orders</p><p className="text-xl font-black">{shiftStats.count}</p></div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {view === 'settings' && (
-                                <div className="space-y-8 animate-in">
-                                    <div className={`${THEME.cardBg} p-8 ${THEME.radius} ${THEME.shadow}`}>
-                                        <h3 className={`font-black uppercase italic mb-6 ${THEME.fontPrimary}`}>Menu Management</h3>
-                                        <button onClick={() => db.ref('menu').set([...menuDrinks, { name: "NEW DRINK", price: 5, soldOut: false }])} className={`w-full ${THEME.accent} ${THEME.accentText} py-4 ${THEME.inputRadius} font-black uppercase text-xs mb-4`}>+ Add Drink</button>
-                                        <div className="space-y-2">
-                                            {menuDrinks.map((d, i) => (
-                                                <div key={i} className="flex gap-2 bg-slate-50 p-2 rounded-2xl">
-                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs" value={d.name} onChange={e => { const n = [...menuDrinks]; n[i].name = e.target.value; db.ref('menu').set(n); }} />
-                                                    <input className="w-16 bg-white p-3 rounded-xl font-bold text-xs" type="number" value={d.price} onChange={e => { const n = [...menuDrinks]; n[i].price = e.target.value; db.ref('menu').set(n); }} />
-                                                </div>
-                                            ))}
+                                    <h3 className={`text-[9px] font-black uppercase tracking-widest ${THEME.fontSecondary} mb-4`}>Shift Performance</h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-slate-50 p-8 rounded-3xl">
+                                            <p className="text-4xl font-black italic tracking-tighter">${shiftStats.revenue.toFixed(2)}</p>
+                                            <p className="text-[10px] font-bold uppercase text-slate-300">Revenue</p>
+                                        </div>
+                                        <div className="bg-slate-50 p-8 rounded-3xl">
+                                            <p className="text-4xl font-black italic tracking-tighter">{shiftStats.count}</p>
+                                            <p className="text-[10px] font-bold uppercase text-slate-300">Served</p>
                                         </div>
                                     </div>
-                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className={`w-full ${THEME.accent} ${THEME.accentText} p-10 ${THEME.radius} font-black uppercase text-2xl italic`}>Launch Kiosk</button>
                                 </div>
                             )}
                         </>
                     )}
 
                     {appMode === 'kiosk' && !pendingOrder && (
-                        <div className="animate-in pt-12 pb-24 text-center">
+                        <div className="animate-in pt-12 text-center">
                             <div id="exit-zone" onClick={handleExitLogic}></div>
                             <h1 className={`text-7xl font-black ${THEME.fontPrimary} uppercase italic mb-12 tracking-tighter`}>NEBULOUS</h1>
                             <div className={`${THEME.cardBg} p-6 ${THEME.radius} ${THEME.shadow} max-w-2xl mx-auto mb-12`}>
@@ -236,14 +264,14 @@
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto px-4">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
-                                    <div key={drink.name} className={`${THEME.cardBg} ${THEME.radius} ${THEME.shadow} p-8 flex flex-col justify-between`}>
+                                    <div key={drink.name} className={`${THEME.cardBg} ${THEME.radius} ${THEME.shadow} p-8`}>
                                         <div className="flex justify-between items-start mb-8">
                                             <h3 className={`text-2xl font-black ${THEME.fontPrimary} uppercase italic`}>{drink.name}</h3>
                                             <span className="text-sm font-bold bg-slate-100 px-4 py-1 rounded-full">${Number(drink.price).toFixed(2)}</span>
                                         </div>
                                         <div className="flex gap-3">
-                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-6 rounded-3xl text-white font-black text-xl shadow-lg">HOT</button>
-                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-6 rounded-3xl text-white font-black text-xl shadow-lg">ICED</button>
+                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-6 rounded-3xl text-white font-black text-xl shadow-lg active:scale-95 transition-transform">HOT</button>
+                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-6 rounded-3xl text-white font-black text-xl shadow-lg active:scale-95 transition-transform">ICED</button>
                                         </div>
                                     </div>
                                 ))}
@@ -261,14 +289,14 @@
                                     </p>
                                     <div className="grid grid-cols-1 gap-3 pt-4">
                                         {milks.filter(m => !m.soldOut).map(m => (
-                                            <button key={m.name} onClick={() => setSelectedMilk(m.name)} className={`py-6 ${THEME.inputRadius} text-3xl font-black uppercase italic border-4 transition-all ${selectedMilk === m.name ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-900 border-slate-50'}`}>{m.name}</button>
+                                            <button key={m.name} onClick={() => setSelectedMilk(m.name)} className={`py-6 ${THEME.inputRadius} text-3xl font-black uppercase italic border-4 transition-all ${selectedMilk === m.name ? 'bg-slate-900 text-white border-slate-900 scale-105 shadow-xl' : 'bg-white text-slate-900 border-slate-50'}`}>{m.name}</button>
                                         ))}
                                     </div>
                                 </div>
                                 {selectedMilk && (
-                                    <button onClick={finalizeOrder} className={`w-full bg-emerald-500 text-white py-10 ${THEME.radius} font-black uppercase text-4xl shadow-2xl`}>Confirm Order</button>
+                                    <button onClick={finalizeOrder} className={`w-full bg-emerald-500 text-white py-10 ${THEME.radius} font-black uppercase text-4xl shadow-2xl active:scale-95 transition-transform animate-in`}>Confirm Order</button>
                                 )}
-                                <button onClick={() => setPendingOrder(null)} className={`mt-10 ${THEME.fontSecondary} font-black uppercase text-sm tracking-widest`}>Cancel & Start Over</button>
+                                <button onClick={() => {setPendingOrder(null); setSelectedMilk(null);}} className={`mt-10 ${THEME.fontSecondary} font-black uppercase text-sm`}>Cancel</button>
                             </div>
                         </div>
                     )}
@@ -278,7 +306,7 @@
                             <div className="bg-emerald-500 w-32 h-32 rounded-full flex items-center justify-center mb-8 shadow-2xl">
                                 <span className="text-white text-6xl font-black">✓</span>
                             </div>
-                            <h1 className="text-5xl font-black uppercase italic tracking-tighter">ORDERED</h1>
+                            <h1 className="text-5xl font-black uppercase italic tracking-tighter">SUCCESS!</h1>
                         </div>
                     )}
                 </div>
