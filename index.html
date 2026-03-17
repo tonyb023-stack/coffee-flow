@@ -15,6 +15,18 @@
         body { font-family: 'Inter', sans-serif; background-color: #fcfdfe; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
         .animate-in { animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Pulsating border for the name field */
+        @keyframes border-pulse {
+            0% { border-color: rgba(15, 23, 42, 1); box-shadow: 0 0 0 0px rgba(15, 23, 42, 0.1); }
+            50% { border-color: rgba(15, 23, 42, 0.4); box-shadow: 0 0 0 8px rgba(15, 23, 42, 0.05); }
+            100% { border-color: rgba(15, 23, 42, 1); box-shadow: 0 0 0 0px rgba(15, 23, 42, 0.1); }
+        }
+        .name-pulse-border {
+            border: 2px solid #0f172a;
+            animation: border-pulse 3s infinite ease-in-out;
+        }
+
         .confirm-btn { background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 15px 30px -5px rgba(16, 185, 129, 0.4); }
         .soft-shadow { box-shadow: 0 4px 12px -1px rgba(0, 0, 0, 0.03), 0 2px 8px -1px rgba(0, 0, 0, 0.02); }
         .card-shadow { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08); }
@@ -357,13 +369,13 @@
                                     <input 
                                         type="text" 
                                         placeholder="WHO IS THIS FOR?" 
-                                        className="w-full bg-slate-50 p-4 md:p-5 rounded-[1.5rem] md:rounded-[1.8rem] text-2xl md:text-3xl font-black uppercase text-center outline-none text-slate-900 transition-all border-2 border-transparent focus:border-slate-900" 
+                                        className="w-full bg-slate-50 p-4 md:p-5 rounded-[1.5rem] md:rounded-[1.8rem] text-2xl md:text-3xl font-black uppercase text-center outline-none text-slate-900 transition-all name-pulse-border" 
                                         value={customerName} 
                                         onChange={(e) => setCustomerName(e.target.value)} 
                                     />
                                 </div>
                             </div>
-                            <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto px-4 transition-all duration-700 ${customerName ? 'opacity-100' : 'opacity-40 grayscale pointer-events-none'}`}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto px-4 transition-all duration-700">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
                                     <div key={drink.name} className="bg-white rounded-[2rem] md:rounded-[2.5rem] card-shadow border border-slate-50 p-4 md:p-6 flex flex-col justify-between transition-all">
                                         <div className="flex justify-between items-start mb-4 md:mb-6">
