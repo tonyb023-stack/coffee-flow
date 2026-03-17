@@ -112,7 +112,7 @@
             const clearHistory = () => { if(confirm("Clear all history?")) db.ref('history').remove(); };
 
             const addMenuItem = () => {
-                const newMenu = [...menuDrinks, { name: "", price: 5, soldOut: false }];
+                const newMenu = [...menuDrinks, { name: "NEW DRINK", price: 5, soldOut: false }];
                 db.ref('menu').set(newMenu);
             };
 
@@ -130,7 +130,7 @@
             };
 
             const addMilkItem = () => {
-                const newMilks = [...milks, { name: "", soldOut: false }];
+                const newMilks = [...milks, { name: "NEW MILK", soldOut: false }];
                 db.ref('milks').set(newMilks);
             };
 
@@ -262,7 +262,6 @@
                                                             {o.temp}
                                                         </span>
                                                         <p className="text-sm font-bold text-slate-500 uppercase tracking-widest leading-none">{o.flavor} • {o.milk}</p>
-                                                        <p className="text-sm font-black text-emerald-500 uppercase leading-none">${Number(o.price).toFixed(2)}</p>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
@@ -282,32 +281,20 @@
                                             {shiftStatus.active ? 'End Shift' : 'Start Shift'}
                                         </button>
                                         <div className="py-6 border-b border-slate-50">
-                                            <h2 className="text-slate-500 font-black uppercase tracking-widest text-sm mb-4">Total Drinks Served</h2>
+                                            <h2 className="text-slate-400 font-black uppercase tracking-widest text-xs mb-4">Drinks Served</h2>
                                             <p className="text-8xl font-black italic tracking-tighter text-slate-900">{shiftStats.count}</p>
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-8">
-                                            <div className="text-center">
-                                                <p className="text-[13px] text-slate-500 font-black uppercase mb-1 tracking-wider">Shift Revenue</p>
-                                                <p className="text-2xl font-black text-slate-900 italic tracking-tight">${shiftStats.revenue.toFixed(2)}</p>
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-[13px] text-slate-500 font-black uppercase mb-1 tracking-wider">Top Drink</p>
-                                                <p className="text-2xl font-black text-slate-900 uppercase italic tracking-tight">{shiftStats.topDrink}</p>
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-[13px] text-slate-500 font-black uppercase mb-1 tracking-wider">Avg Wait</p>
-                                                <p className="text-2xl font-black text-slate-900 italic tracking-tight">{shiftStats.avgWait}m</p>
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-[13px] text-slate-500 font-black uppercase mb-1 tracking-wider">Peak Hour</p>
-                                                <p className="text-2xl font-black text-slate-900 italic tracking-tight">{shiftStats.busiestHour}</p>
-                                            </div>
+                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Shift Revenue</p><p className="text-lg font-black text-slate-900">${shiftStats.revenue.toFixed(2)}</p></div>
+                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Top Drink</p><p className="text-lg font-black text-slate-900 uppercase italic">{shiftStats.topDrink}</p></div>
+                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Avg Wait</p><p className="text-lg font-black text-slate-900">{shiftStats.avgWait}m</p></div>
+                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Peak Hour</p><p className="text-lg font-black text-slate-900">{shiftStats.busiestHour}</p></div>
                                         </div>
                                         <div className="mt-8 pt-8 border-t border-slate-50">
-                                            <p className="text-[11px] text-slate-400 font-black uppercase mb-6 tracking-widest">Download CSV Reports</p>
+                                            <p className="text-[10px] text-slate-300 font-black uppercase mb-6">Download CSV Reports</p>
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                                 {['shift', '24h', 'week', 'month'].map(t => (
-                                                    <button key={t} onClick={() => exportCSV(t)} className="bg-slate-50 hover:bg-slate-900 hover:text-white text-slate-500 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">{t}</button>
+                                                    <button key={t} onClick={() => exportCSV(t)} className="bg-slate-50 hover:bg-slate-900 hover:text-white text-slate-400 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all">{t}</button>
                                                 ))}
                                             </div>
                                         </div>
@@ -336,10 +323,10 @@
                                         <div className="space-y-3">
                                             {menuDrinks.map((d, i) => (
                                                 <div key={i} className="flex gap-3 items-center bg-slate-50 p-3 rounded-2xl">
-                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs border border-slate-100 outline-none" placeholder="Drink Name" value={d.name} onChange={e => updateMenuItem(i, 'name', e.target.value)} />
-                                                    <div className="flex items-center bg-white px-3 rounded-xl border border-slate-100 w-28">
-                                                        <span className="text-slate-400 font-bold text-xs pr-1">$</span>
-                                                        <input className="w-full p-3 bg-transparent font-bold text-xs outline-none" type="number" value={d.price} onChange={e => updateMenuItem(i, 'price', e.target.value)} />
+                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs border border-slate-100 outline-none" value={d.name} onChange={e => updateMenuItem(i, 'name', e.target.value)} />
+                                                    <div className="flex items-center bg-white px-3 rounded-xl border border-slate-100">
+                                                        <span className="text-slate-400 font-bold text-xs">$</span>
+                                                        <input className="w-16 p-3 bg-transparent font-bold text-xs outline-none" type="number" value={d.price} onChange={e => updateMenuItem(i, 'price', e.target.value)} />
                                                     </div>
                                                     <button onClick={() => updateMenuItem(i, 'soldOut', !d.soldOut)} className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{d.soldOut ? 'OUT' : 'IN'}</button>
                                                     <button onClick={() => deleteMenuItem(i)} className="p-3 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all">
@@ -358,7 +345,7 @@
                                         <div className="space-y-3">
                                             {milks.map((m, i) => (
                                                 <div key={i} className="flex gap-3 items-center bg-slate-50 p-3 rounded-2xl">
-                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs border border-slate-100 outline-none" placeholder="Milk Type" value={m.name} onChange={e => updateMilkItem(i, 'name', e.target.value)} />
+                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs border border-slate-100 outline-none" value={m.name} onChange={e => updateMilkItem(i, 'name', e.target.value)} />
                                                     <button onClick={() => updateMilkItem(i, 'soldOut', !m.soldOut)} className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${m.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{m.soldOut ? 'OUT' : 'IN'}</button>
                                                     <button onClick={() => deleteMilkItem(i)} className="p-3 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
