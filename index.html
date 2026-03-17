@@ -362,34 +362,34 @@
                     )}
 
                     {appMode === 'kiosk' && !pendingOrder && (
-                        <div className="animate-in pt-20 pb-24 text-center">
+                        <div className="animate-in pt-12 pb-24 text-center">
                             <div id="exit-zone" onClick={handleExitLogic}></div>
-                            <div className="mb-20">
-                                <h1 className="text-8xl font-black text-slate-900 tight-tracking uppercase italic leading-none mb-4">NEBULOUS</h1>
+                            <div className="mb-12">
+                                <h1 className="text-7xl font-black text-slate-900 tight-tracking uppercase italic leading-none mb-4">NEBULOUS</h1>
                             </div>
                             
-                            <div className="max-w-2xl mx-auto mb-20">
-                                <div className="bg-white p-8 rounded-[3rem] card-shadow border border-slate-50 transition-all">
+                            <div className="max-w-2xl mx-auto mb-12">
+                                <div className="bg-white p-6 rounded-[2.5rem] card-shadow border border-slate-50 transition-all">
                                     <input 
                                         type="text" 
                                         placeholder="WHO IS THIS FOR?" 
-                                        className="kiosk-input w-full bg-slate-50 p-6 rounded-[2rem] text-4xl font-black uppercase text-center outline-none placeholder:text-slate-200 text-slate-900 border-2 border-transparent transition-all" 
+                                        className="kiosk-input w-full bg-slate-50 p-5 rounded-[1.8rem] text-3xl font-black uppercase text-center outline-none placeholder:text-slate-200 text-slate-900 border-2 border-transparent transition-all" 
                                         value={customerName} 
                                         onChange={(e) => setCustomerName(e.target.value)} 
                                     />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-12 max-w-2xl mx-auto px-4">
+                            <div className="grid grid-cols-2 gap-4 max-w-4xl mx-auto px-2">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
-                                    <div key={drink.name} className="bg-white rounded-[4rem] card-shadow border border-slate-50 p-12 transition-all hover:translate-y-[-4px]">
-                                        <div className="flex justify-between items-center mb-10">
-                                            <h3 className="text-5xl font-black text-slate-900 uppercase italic tight-tracking">{drink.name}</h3>
-                                            <span className="text-2xl font-bold text-slate-900 italic bg-slate-100 px-6 py-2 rounded-full">${Number(drink.price).toFixed(2)}</span>
+                                    <div key={drink.name} className="bg-white rounded-[2.5rem] card-shadow border border-slate-50 p-6 flex flex-col justify-between transition-all hover:translate-y-[-2px]">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <h3 className="text-2xl font-black text-slate-900 uppercase italic tight-tracking text-left leading-tight pr-2">{drink.name}</h3>
+                                            <span className="text-sm font-bold text-slate-900 italic bg-slate-100 px-3 py-1 rounded-full shrink-0">${Number(drink.price).toFixed(2)}</span>
                                         </div>
-                                        <div className="flex gap-6">
-                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg active:brightness-90 active:scale-95 transition-all">HOT</button>
-                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-10 rounded-[2.5rem] text-white font-black text-3xl shadow-lg active:brightness-90 active:scale-95 transition-all">ICED</button>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-6 rounded-[1.5rem] text-white font-black text-xl shadow-md active:brightness-90 active:scale-95 transition-all">HOT</button>
+                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-6 rounded-[1.5rem] text-white font-black text-xl shadow-md active:brightness-90 active:scale-95 transition-all">ICED</button>
                                         </div>
                                     </div>
                                 ))}
