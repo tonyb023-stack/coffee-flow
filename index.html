@@ -112,7 +112,7 @@
             const clearHistory = () => { if(confirm("Clear all history?")) db.ref('history').remove(); };
 
             const addMenuItem = () => {
-                const newMenu = [...menuDrinks, { name: "NEW DRINK", price: 5, soldOut: false }];
+                const newMenu = [...menuDrinks, { name: "", price: 5, soldOut: false }];
                 db.ref('menu').set(newMenu);
             };
 
@@ -130,7 +130,7 @@
             };
 
             const addMilkItem = () => {
-                const newMilks = [...milks, { name: "NEW MILK", soldOut: false }];
+                const newMilks = [...milks, { name: "", soldOut: false }];
                 db.ref('milks').set(newMilks);
             };
 
