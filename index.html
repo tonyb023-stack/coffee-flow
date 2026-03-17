@@ -16,12 +16,9 @@
         .animate-in { animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .confirm-btn { background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 15px 30px -5px rgba(16, 185, 129, 0.4); }
-        .soft-shadow { box-shadow: 0 4px 12px -1px rgba(0, 0, 0, 0.03), 0 2px 8px -1px rgba(0, 0, 0, 0.02); }
         .card-shadow { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08); }
-        #exit-zone { position: fixed; top: 0; right: 0; width: 120px; height: 120px; z-index: 10000; cursor: pointer; background: transparent; }
+        #exit-zone { position: fixed; top: 0; right: 0; width: 100px; height: 100px; z-index: 10000; background: transparent; }
         .tight-tracking { letter-spacing: -0.05em; }
-        .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); }
-        .kiosk-input:focus { border-color: #0f172a; box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.05); }
     </style>
 </head>
 <body>
@@ -30,26 +27,24 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
 
+        // --- FIREBASE SETUP ---
         const firebaseConfig = {
             apiKey: "AIzaSyDDDp160eqcOLhW90xoSd9xxHQuJr8k7sA",
             authDomain: "coffee-order-tracker.firebaseapp.com",
             projectId: "coffee-order-tracker",
             storageBucket: "coffee-order-tracker.firebasestorage.app",
             messagingSenderId: "650691026035",
-            appId: "1:650691026035:web:96e8bee8d3a5bb5d205e06",
-            measurementId: "G-7K3GCP3XL5"
+            appId: "1:650691026035:web:96e8bee8d3a5bb5d205e06"
         };
-
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
+        // --- COMPONENTS ---
         const OrderTimer = ({ startTime }) => {
             const [elapsed, setElapsed] = useState(0);
             useEffect(() => {
-                const calculate = () => setElapsed(Math.round((Date.now() - startTime) / 60000));
-                calculate();
-                const interval = setInterval(calculate, 30000);
-                return () => clearInterval(interval);
+                const tick = () => setElapsed(Math.round((Date.now() - startTime) / 60000));
+                tick(); const i = setInterval(tick, 30000); return () => clearInterval(i);
             }, [startTime]);
             return (
                 <div className="text-right ml-4">
@@ -67,22 +62,19 @@
             const [menuDrinks, setMenuDrinks] = useState([]);
             const [milks, setMilks] = useState([]);
             const [shiftStatus, setShiftStatus] = useState({ active: false, startTime: 0 });
-            const [showShiftModal, setShowShiftModal] = useState(false);
             
+            // Kiosk State
             const [customerName, setCustomerName] = useState('');
             const [pendingOrder, setPendingOrder] = useState(null);
             const [selectedMilk, setSelectedMilk] = useState(null);
             const [specialRequest, setSpecialRequest] = useState('');
             const [showSuccess, setShowSuccess] = useState(false);
-            const clickRef = useRef({ count: 0, last: 0 });
+            const tripleTap = useRef({ count: 0, last: 0 });
 
             useEffect(() => {
                 const refs = {
-                    orders: db.ref('orders'),
-                    history: db.ref('history'),
-                    menu: db.ref('menu'),
-                    milks: db.ref('milks'),
-                    shift: db.ref('shift')
+                    orders: db.ref('orders'), history: db.ref('history'),
+                    menu: db.ref('menu'), milks: db.ref('milks'), shift: db.ref('shift')
                 };
                 refs.orders.on('value', s => setOrders(Object.values(s.val() || {}).sort((a,b) => a.id - b.id)));
                 refs.history.on('value', s => setHistory(Object.values(s.val() || {}).sort((a,b) => b.completedAt - a.completedAt)));
@@ -92,359 +84,167 @@
                 return () => Object.values(refs).forEach(r => r.off());
             }, []);
 
-            const completeOrder = (order) => {
-                const completedAt = Date.now();
-                const waitTime = Math.round((completedAt - order.startTime) / 60000);
-                db.ref(`history/${order.id}`).set({ ...order, completedAt, waitTime, status: 'Completed' });
-                db.ref(`orders/${order.id}`).remove();
-            };
-
-            const toggleShift = () => {
-                if (shiftStatus.active) setShowShiftModal(true);
-                else db.ref('shift').set({ active: true, startTime: Date.now() });
-            };
-
-            const confirmEndShift = () => {
-                db.ref('shift').set({ active: false, startTime: 0 });
-                setShowShiftModal(false);
-            };
-
-            const clearHistory = () => { if(confirm("Clear all history?")) db.ref('history').remove(); };
-
-            const addMenuItem = () => {
-                const newMenu = [...menuDrinks, { name: "NEW DRINK", price: 5, soldOut: false }];
-                db.ref('menu').set(newMenu);
-            };
-
-            const updateMenuItem = (index, field, value) => {
-                const newMenu = [...menuDrinks];
-                newMenu[index][field] = value;
-                db.ref('menu').set(newMenu);
-            };
-
-            const deleteMenuItem = (index) => {
-                if (confirm("Delete this drink from the menu?")) {
-                    const newMenu = menuDrinks.filter((_, i) => i !== index);
-                    db.ref('menu').set(newMenu);
-                }
-            };
-
-            const addMilkItem = () => {
-                const newMilks = [...milks, { name: "NEW MILK", soldOut: false }];
-                db.ref('milks').set(newMilks);
-            };
-
-            const updateMilkItem = (index, field, value) => {
-                const newMilks = [...milks];
-                newMilks[index][field] = value;
-                db.ref('milks').set(newMilks);
-            };
-
-            const deleteMilkItem = (index) => {
-                if (confirm("Delete this milk option?")) {
-                    const newMilks = milks.filter((_, i) => i !== index);
-                    db.ref('milks').set(newMilks);
-                }
-            };
-
-            const exportCSV = (timeFrame) => {
+            // --- FUNCTIONS ---
+            const completeOrder = (o) => {
                 const now = Date.now();
-                let filtered = [];
-                if (timeFrame === 'shift') filtered = history.filter(o => o.completedAt > shiftStatus.startTime);
-                else if (timeFrame === '24h') filtered = history.filter(o => o.completedAt > (now - 86400000));
-                else if (timeFrame === 'week') filtered = history.filter(o => o.completedAt > (now - 604800000));
-                else if (timeFrame === 'month') filtered = history.filter(o => o.completedAt > (now - 2592000000));
+                db.ref(`history/${o.id}`).set({ ...o, completedAt: now, waitTime: Math.round((now - o.startTime)/60000), status: 'Completed' });
+                db.ref(`orders/${o.id}`).remove();
+            };
 
-                let csv = "Customer,Flavor,Temp,Milk,Price,Wait Time,Date\n";
-                filtered.forEach(o => { 
-                    csv += `${o.customer},${o.flavor},${o.temp},${o.milk},${o.price},${o.waitTime}m,${new Date(o.completedAt).toLocaleString()}\n`; 
-                });
-                const blob = new Blob([csv], { type: 'text/csv' });
+            const downloadCSV = (type) => {
+                let data = history;
+                const now = Date.now();
+                if (type === 'shift') data = history.filter(o => o.completedAt > shiftStatus.startTime);
+                if (type === '24h') data = history.filter(o => o.completedAt > (now - 86400000));
+                
+                const csvRows = [["ID", "Customer", "Drink", "Milk", "Temp", "Wait(m)", "Completed"]];
+                data.forEach(o => csvRows.push([o.id, o.customer, o.flavor, o.milk, o.temp, o.waitTime, new Date(o.completedAt).toLocaleString()]));
+                const blob = new Blob([csvRows.map(e => e.join(",")).join("\n")], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.setAttribute('href', url);
-                a.setAttribute('download', `neb_export_${timeFrame}_${new Date().toLocaleDateString()}.csv`);
-                a.click();
+                const a = document.createElement('a'); a.href = url; a.download = `Nebulous_${type}_Report.csv`; a.click();
             };
 
-            const handleExitLogic = () => {
+            const handleExit = () => {
                 const now = Date.now();
-                if (now - clickRef.current.last > 800) clickRef.current.count = 0;
-                clickRef.current.count += 1;
-                clickRef.current.last = now;
-                if (clickRef.current.count >= 3) {
-                    setAppMode('barista');
-                    setView('settings');
-                    localStorage.setItem('app-mode', 'barista');
-                    clickRef.current.count = 0;
-                }
-            };
-
-            const finalizeOrder = () => {
-                const id = Date.now();
-                db.ref(`orders/${id}`).set({
-                    id, customer: customerName || "Guest", flavor: pendingOrder.name,
-                    price: pendingOrder.price || 0, temp: pendingOrder.temp, milk: selectedMilk,
-                    note: specialRequest, startTime: id, status: 'Active'
-                });
-                setPendingOrder(null); setSelectedMilk(null); setCustomerName(''); setSpecialRequest(''); setShowSuccess(true);
-                setTimeout(() => setShowSuccess(false), 2000);
+                if (now - tripleTap.current.last > 800) tripleTap.current.count = 0;
+                tripleTap.current.count++; tripleTap.current.last = now;
+                if (tripleTap.current.count >= 3) { setAppMode('barista'); setView('settings'); localStorage.setItem('app-mode', 'barista'); }
             };
 
             const shiftStats = useMemo(() => {
-                const activeOrders = history.filter(o => o.completedAt > shiftStatus.startTime);
-                const revenue = activeOrders.reduce((acc, o) => acc + Number(o.price), 0);
-                const drinkCounts = {};
-                const hourCounts = {};
-                let totalWait = 0;
-                activeOrders.forEach(o => {
-                    drinkCounts[o.flavor] = (drinkCounts[o.flavor] || 0) + 1;
-                    totalWait += (o.waitTime || 0);
-                    const hour = new Date(o.completedAt).getHours();
-                    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
-                });
-                const topDrink = Object.keys(drinkCounts).reduce((a, b) => drinkCounts[a] > drinkCounts[b] ? a : b, "N/A");
-                const avgWait = activeOrders.length > 0 ? (totalWait / activeOrders.length).toFixed(1) : 0;
-                const busiestHourRaw = Object.keys(hourCounts).reduce((a, b) => hourCounts[a] > hourCounts[b] ? a : b, null);
-                const busiestHour = busiestHourRaw !== null ? `${busiestHourRaw % 12 || 12}${busiestHourRaw >= 12 ? 'PM' : 'AM'}` : "N/A";
-                return { revenue, topDrink, count: activeOrders.length, avgWait, busiestHour };
+                const active = history.filter(o => o.completedAt > shiftStatus.startTime);
+                const rev = active.reduce((acc, o) => acc + (Number(o.price) || 0), 0);
+                const counts = {}; active.forEach(o => counts[o.flavor] = (counts[o.flavor] || 0) + 1);
+                const top = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, "N/A");
+                const avg = active.length ? (active.reduce((a,o)=>a+(o.waitTime||0),0)/active.length).toFixed(1) : 0;
+                return { rev, top, count: active.length, avg };
             }, [history, shiftStatus]);
 
             return (
                 <div className="max-w-4xl mx-auto p-4 md:p-8">
-                    {appMode === 'barista' && (
-                        <>
-                            <nav className="grid grid-cols-4 gap-2 mb-8 bg-white p-2 rounded-3xl soft-shadow border border-slate-100">
+                    {appMode === 'barista' ? (
+                        <div>
+                            <nav className="grid grid-cols-4 gap-2 mb-8 bg-white p-2 rounded-3xl card-shadow border border-slate-100">
                                 {['queue', 'history', 'stats', 'settings'].map(v => (
-                                    <button key={v} onClick={() => setView(v)} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${view === v ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>
-                                        {v}
-                                    </button>
+                                    <button key={v} onClick={() => setView(v)} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest ${view === v ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>{v}</button>
                                 ))}
                             </nav>
 
                             {view === 'queue' && (
-                                <div className="grid grid-cols-1 gap-6 animate-in">
+                                <div className="space-y-6 animate-in">
                                     {orders.map(o => (
-                                        <div key={o.id} className={`bg-white p-8 rounded-[2.5rem] border-l-[12px] soft-shadow flex justify-between items-center transition-all ${o.temp === 'HOT' ? 'border-red-500' : 'border-blue-500'}`}>
-                                            <div className="flex-1">
-                                                <h3 className="text-3xl font-black uppercase italic tracking-tighter text-slate-900 mb-1">{o.customer}</h3>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${o.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
-                                                        {o.temp}
-                                                    </span>
-                                                    <p className="text-slate-500 font-bold uppercase text-lg tracking-widest leading-none">{o.flavor} • {o.milk}</p>
+                                        <div key={o.id} className={`bg-white p-8 rounded-[2.5rem] border-l-[12px] card-shadow flex justify-between items-center ${o.temp === 'HOT' ? 'border-red-500' : 'border-blue-500'}`}>
+                                            <div>
+                                                <h3 className="text-3xl font-black uppercase italic text-slate-900">{o.customer}</h3>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${o.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>{o.temp}</span>
+                                                    <p className="text-slate-500 font-bold uppercase text-lg">{o.flavor} • {o.milk}</p>
                                                 </div>
-                                                {o.note && <div className="mt-3 inline-block bg-emerald-50 px-4 py-1 rounded-full"><p className="text-emerald-500 font-black text-xs italic uppercase">"{o.note}"</p></div>}
                                             </div>
-                                            
                                             <div className="flex items-center gap-8">
                                                 <OrderTimer startTime={o.startTime} />
-                                                <button onClick={() => completeOrder(o)} className="w-20 h-20 bg-slate-900 text-white rounded-[1.5rem] font-black text-3xl hover:scale-105 active:scale-95 transition-all shadow-xl">✓</button>
+                                                <button onClick={() => completeOrder(o)} className="w-16 h-16 bg-slate-900 text-white rounded-2xl font-black text-2xl shadow-lg">✓</button>
                                             </div>
                                         </div>
                                     ))}
-                                    {orders.length === 0 && <div className="text-center py-20 text-slate-200 font-black uppercase italic text-4xl">No Orders</div>}
-                                </div>
-                            )}
-
-                            {view === 'history' && (
-                                <div className="bg-white rounded-[3rem] p-10 soft-shadow animate-in border border-slate-50">
-                                    <div className="flex justify-between mb-10 items-center">
-                                        <h2 className="font-black uppercase italic text-2xl tracking-tighter text-slate-900">Order History</h2>
-                                        <button onClick={clearHistory} className="text-[10px] font-black uppercase text-red-500 tracking-widest bg-red-50 px-5 py-2 rounded-full">Clear History</button>
-                                    </div>
-                                    <div className="space-y-6">
-                                        {history.slice(0, 30).map(o => (
-                                            <div key={o.id} className="flex justify-between items-center bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                                                <div className="flex-1">
-                                                    <span className="font-black uppercase italic text-lg text-slate-900 leading-none">{o.customer}</span>
-                                                    <div className="flex gap-3 mt-1.5 pl-0">
-                                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${o.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
-                                                            {o.temp}
-                                                        </span>
-                                                        <p className="text-sm font-bold text-slate-500 uppercase tracking-widest leading-none">{o.flavor} • {o.milk}</p>
-                                                        <p className="text-sm font-black text-emerald-500 uppercase leading-none">${Number(o.price).toFixed(2)}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="text-xs font-black text-slate-900 uppercase italic">{o.waitTime}m</span>
-                                                    <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">MIN WAIT</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
                                 </div>
                             )}
 
                             {view === 'stats' && (
-                                <div className="grid grid-cols-1 gap-6 animate-in">
-                                    <div className="bg-white p-10 rounded-[3rem] soft-shadow text-center border border-slate-50">
-                                        <button onClick={toggleShift} className={`mb-10 px-12 py-5 rounded-full font-black uppercase tracking-widest text-sm shadow-sm transition-all ${shiftStatus.active ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
-                                            {shiftStatus.active ? 'End Shift' : 'Start Shift'}
-                                        </button>
-                                        <div className="py-6 border-b border-slate-50">
-                                            <h2 className="text-slate-400 font-black uppercase tracking-widest text-xs mb-4">Drinks Served</h2>
-                                            <p className="text-8xl font-black italic tracking-tighter text-slate-900">{shiftStats.count}</p>
+                                <div className="space-y-6 animate-in">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-white p-8 rounded-[2.5rem] card-shadow border border-slate-50">
+                                            <p className="text-slate-300 font-black uppercase text-[10px] tracking-widest mb-2">Total Revenue</p>
+                                            <h2 className="text-4xl font-black text-slate-900">${shiftStats.rev.toFixed(2)}</h2>
                                         </div>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-8">
-                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Shift Revenue</p><p className="text-lg font-black text-slate-900">${shiftStats.revenue.toFixed(2)}</p></div>
-                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Top Drink</p><p className="text-lg font-black text-slate-900 uppercase italic">{shiftStats.topDrink}</p></div>
-                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Avg Wait</p><p className="text-lg font-black text-slate-900">{shiftStats.avgWait}m</p></div>
-                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Peak Hour</p><p className="text-lg font-black text-slate-900">{shiftStats.busiestHour}</p></div>
-                                        </div>
-                                        <div className="mt-8 pt-8 border-t border-slate-50">
-                                            <p className="text-[10px] text-slate-300 font-black uppercase mb-6">Download CSV Reports</p>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                                {['shift', '24h', 'week', 'month'].map(t => (
-                                                    <button key={t} onClick={() => exportCSV(t)} className="bg-slate-50 hover:bg-slate-900 hover:text-white text-slate-400 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all">{t}</button>
-                                                ))}
-                                            </div>
+                                        <div className="bg-white p-8 rounded-[2.5rem] card-shadow border border-slate-50 text-center">
+                                            <button onClick={() => shiftStatus.active ? db.ref('shift').set({active:false, startTime:0}) : db.ref('shift').set({active:true, startTime:Date.now()})} 
+                                                className={`w-full h-full font-black uppercase italic text-xl ${shiftStatus.active ? 'text-red-500' : 'text-emerald-500'}`}>
+                                                {shiftStatus.active ? 'End Shift' : 'Start Shift'}
+                                            </button>
                                         </div>
                                     </div>
-                                    {showShiftModal && (
-                                        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 modal-backdrop">
-                                            <div className="bg-white rounded-[3rem] p-10 max-w-sm w-full animate-in text-center shadow-2xl">
-                                                <h2 className="text-3xl font-black uppercase italic tight-tracking mb-4">End Shift?</h2>
-                                                <div className="flex flex-col gap-3">
-                                                    <button onClick={confirmEndShift} className="bg-red-500 text-white py-5 rounded-2xl font-black uppercase text-sm">Confirm End Shift</button>
-                                                    <button onClick={() => setShowShiftModal(false)} className="bg-slate-100 text-slate-400 py-5 rounded-2xl font-black uppercase text-sm">Cancel</button>
-                                                </div>
-                                            </div>
+                                    <div className="bg-white p-8 rounded-[2.5rem] card-shadow border border-slate-50">
+                                        <p className="text-slate-300 font-black uppercase text-[10px] mb-4">Export Data</p>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {['shift', '24h', 'Weekly'].map(t => (
+                                                <button key={t} onClick={() => downloadCSV(t.toLowerCase())} className="bg-slate-50 py-4 rounded-2xl font-black uppercase text-[10px] text-slate-900 border border-slate-100">CSV {t}</button>
+                                            ))}
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             )}
 
                             {view === 'settings' && (
-                                <div className="space-y-8 animate-in">
-                                    <div className="bg-white p-8 rounded-[3rem] soft-shadow border border-slate-50">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="font-black uppercase italic text-slate-900">Menu Management</h3>
-                                            <button onClick={addMenuItem} className="text-[10px] font-black uppercase bg-slate-900 text-white px-4 py-2 rounded-full shadow-lg">+ Add Drink</button>
-                                        </div>
+                                <div className="space-y-6 animate-in">
+                                    <div className="bg-white p-8 rounded-[2.5rem] card-shadow">
+                                        <h3 className="font-black uppercase italic mb-6">Menu & Inventory</h3>
                                         <div className="space-y-3">
                                             {menuDrinks.map((d, i) => (
-                                                <div key={i} className="flex gap-3 items-center bg-slate-50 p-3 rounded-2xl">
-                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs border border-slate-100 outline-none" value={d.name} onChange={e => updateMenuItem(i, 'name', e.target.value)} />
-                                                    <div className="flex items-center bg-white px-3 rounded-xl border border-slate-100">
-                                                        <span className="text-slate-400 font-bold text-xs">$</span>
-                                                        <input className="w-16 p-3 bg-transparent font-bold text-xs outline-none" type="number" value={d.price} onChange={e => updateMenuItem(i, 'price', e.target.value)} />
-                                                    </div>
-                                                    <button onClick={() => updateMenuItem(i, 'soldOut', !d.soldOut)} className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{d.soldOut ? 'OUT' : 'IN'}</button>
-                                                    <button onClick={() => deleteMenuItem(i)} className="p-3 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                                                    </button>
+                                                <div key={i} className="flex gap-3 bg-slate-50 p-3 rounded-2xl items-center">
+                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs" value={d.name} onChange={e => {const n=[...menuDrinks]; n[i].name=e.target.value; db.ref('menu').set(n);}} />
+                                                    <button onClick={() => {const n=[...menuDrinks]; n[i].soldOut=!n[i].soldOut; db.ref('menu').set(n);}} className={`px-4 py-3 rounded-xl font-black text-[10px] ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200'}`}>SOLD OUT</button>
                                                 </div>
                                             ))}
+                                            <button onClick={() => db.ref('menu').set([...menuDrinks, {name:'NEW DRINK', price:5, soldOut:false}])} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl font-black uppercase text-[10px] text-slate-300">+ New Drink</button>
                                         </div>
                                     </div>
-                                    <div className="bg-white p-8 rounded-[3rem] soft-shadow border border-slate-50">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="font-black uppercase italic text-slate-900">Milk Options</h3>
-                                            <button onClick={addMilkItem} className="text-[10px] font-black uppercase bg-slate-900 text-white px-4 py-2 rounded-full shadow-lg">+ Add Milk</button>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {milks.map((m, i) => (
-                                                <div key={i} className="flex gap-3 items-center bg-slate-50 p-3 rounded-2xl">
-                                                    <input className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs border border-slate-100 outline-none" value={m.name} onChange={e => updateMilkItem(i, 'name', e.target.value)} />
-                                                    <button onClick={() => updateMilkItem(i, 'soldOut', !m.soldOut)} className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${m.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{m.soldOut ? 'OUT' : 'IN'}</button>
-                                                    <button onClick={() => deleteMilkItem(i)} className="p-3 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-10 rounded-[3rem] font-black uppercase text-2xl shadow-2xl italic tracking-tighter transition-transform active:scale-95">Launch Kiosk Mode</button>
+                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-10 rounded-[3rem] font-black uppercase text-2xl italic shadow-2xl">Launch Kiosk Mode</button>
                                 </div>
                             )}
-                        </>
-                    )}
-
-                    {appMode === 'kiosk' && !pendingOrder && (
-                        <div className="animate-in pt-6 md:pt-12 pb-24 text-center">
-                            <div id="exit-zone" onClick={handleExitLogic}></div>
-                            <div className="mb-8 md:mb-12">
-                                <h1 className="text-5xl md:text-7xl font-black text-slate-900 tight-tracking uppercase italic leading-none mb-4">NEBULOUS</h1>
-                            </div>
+                        </div>
+                    ) : (
+                        <div className="animate-in pt-12 text-center pb-24">
+                            <div id="exit-zone" onClick={handleExit}></div>
+                            <h1 className="text-6xl md:text-8xl font-black text-slate-900 tight-tracking uppercase italic mb-16">NEBULOUS</h1>
                             
-                            <div className="max-w-2xl mx-auto mb-8 md:mb-12">
-                                <div className="bg-white p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] card-shadow border border-slate-50 transition-all">
-                                    <input 
-                                        type="text" 
-                                        placeholder="WHO IS THIS FOR?" 
-                                        className="kiosk-input w-full bg-slate-50 p-4 md:p-5 rounded-[1.5rem] md:rounded-[1.8rem] text-2xl md:text-3xl font-black uppercase text-center outline-none placeholder:text-slate-200 text-slate-900 border-2 border-transparent transition-all" 
-                                        value={customerName} 
-                                        onChange={(e) => setCustomerName(e.target.value)} 
-                                    />
-                                </div>
+                            <div className="max-w-xl mx-auto mb-12 bg-white p-6 rounded-[2.5rem] card-shadow border border-slate-50">
+                                <input placeholder="WHO IS THIS FOR?" className="w-full bg-slate-50 p-6 rounded-[2rem] text-3xl font-black uppercase text-center outline-none" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto px-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
-                                    <div key={drink.name} className="bg-white rounded-[2rem] md:rounded-[2.5rem] card-shadow border border-slate-50 p-4 md:p-6 flex flex-col justify-between transition-all hover:translate-y-[-2px]">
-                                        <div className="flex justify-between items-start mb-4 md:mb-6">
-                                            <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase italic tight-tracking text-left leading-tight pr-2">{drink.name}</h3>
-                                            <span className="text-xs md:text-sm font-bold text-slate-900 italic bg-slate-100 px-3 py-1 rounded-full shrink-0">${Number(drink.price).toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex gap-2 md:gap-3">
-                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-4 md:py-6 rounded-[1.2rem] md:rounded-[1.5rem] text-white font-black text-lg md:text-xl shadow-md active:brightness-90 active:scale-95 transition-all">HOT</button>
-                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-4 md:py-6 rounded-[1.2rem] md:rounded-[1.5rem] text-white font-black text-lg md:text-xl shadow-md active:brightness-90 active:scale-95 transition-all">ICED</button>
+                                    <div key={drink.name} className="bg-white rounded-[2.5rem] card-shadow p-6">
+                                        <h3 className="text-2xl font-black uppercase italic mb-6 text-left">{drink.name}</h3>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-8 rounded-[1.5rem] text-white font-black text-2xl shadow-md">HOT</button>
+                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-8 rounded-[1.5rem] text-white font-black text-2xl shadow-md">ICED</button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                    )}
 
-                    {pendingOrder && (
-                        <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center p-4 md:p-8 overflow-y-auto">
-                            <div className="max-w-xl w-full animate-in text-center py-8 md:py-16">
-                                <div className="mb-8 md:mb-12">
-                                    <span className={`text-xs md:text-sm font-black px-4 py-2 rounded-full mb-4 inline-block ${pendingOrder.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
-                                        {pendingOrder.temp}
-                                    </span>
-                                    <h2 className="text-4xl md:text-7xl font-black uppercase italic tight-tracking leading-tight">{pendingOrder.name}</h2>
-                                </div>
-
-                                <div className="space-y-8 md:space-y-16">
-                                    <div className="grid grid-cols-1 gap-3 md:gap-5">
-                                        <p className="text-slate-900 font-black uppercase text-xl md:text-2xl tracking-[0.15em]">Select Your Milk</p>
-                                        {milks.filter(m => !m.soldOut).map(m => (
-                                            <button key={m.name} onClick={() => setSelectedMilk(m.name)} 
-                                                className={`py-4 md:py-8 rounded-[1.5rem] md:rounded-[2.8rem] text-xl md:text-3xl font-black uppercase italic duration-300 border-2 md:border-4 ${selectedMilk === m.name ? 'bg-slate-900 text-white border-slate-900 card-shadow scale-[1.03]' : 'bg-white text-slate-900 border-slate-50'}`}>
-                                                {m.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    
-                                    {selectedMilk && (
-                                        <div className="space-y-8 md:space-y-16 animate-in">
-                                            <div className="space-y-4">
-                                                <p className="text-slate-900 font-black uppercase text-xl md:text-2xl tracking-[0.15em]">Anything Else?</p>
-                                                <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full bg-slate-50 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2.8rem] text-lg md:text-xl font-bold uppercase border border-slate-100 outline-none text-center placeholder:text-slate-200" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
-                                            </div>
-                                            <div className="pt-4 md:pt-8">
-                                                <p className="text-black font-black text-2xl md:text-4xl mb-4 italic tracking-tighter">TOTAL: ${Number(pendingOrder.price).toFixed(2)}</p>
-                                                <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-6 md:py-11 rounded-[1.5rem] md:rounded-[3rem] font-black uppercase text-2xl md:text-4xl shadow-lg active:scale-[0.97] transition-all">Confirm Order</button>
-                                            </div>
+                            {pendingOrder && (
+                                <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center p-8 overflow-y-auto">
+                                    <div className="max-w-xl w-full animate-in py-12">
+                                        <h2 className="text-6xl font-black uppercase italic mb-12">Select Your Milk</h2>
+                                        <div className="space-y-4 mb-12">
+                                            {milks.filter(m => !m.soldOut).map(m => (
+                                                <button key={m.name} onClick={() => setSelectedMilk(m.name)} className={`w-full py-8 rounded-[2.5rem] text-3xl font-black uppercase italic border-4 ${selectedMilk === m.name ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-900 border-slate-50'}`}>{m.name}</button>
+                                            ))}
                                         </div>
-                                    )}
+                                        {selectedMilk && (
+                                            <div className="space-y-12 animate-in">
+                                                <input placeholder="SPECIAL REQUESTS?" className="w-full bg-slate-50 p-8 rounded-[2.5rem] text-2xl font-black uppercase text-center border border-slate-100" value={specialRequest} onChange={e => setSpecialRequest(e.target.value)} />
+                                                <button onClick={() => {
+                                                    const id = Date.now();
+                                                    db.ref(`orders/${id}`).set({id, customer: customerName||"Guest", flavor: pendingOrder.name, temp: pendingOrder.temp, milk: selectedMilk, note: specialRequest, startTime: id, price: pendingOrder.price});
+                                                    setPendingOrder(null); setSelectedMilk(null); setCustomerName(''); setSpecialRequest(''); setShowSuccess(true);
+                                                    setTimeout(() => setShowSuccess(false), 2000);
+                                                }} className="w-full confirm-btn text-white py-12 rounded-[3rem] font-black uppercase text-4xl shadow-2xl">Confirm Order</button>
+                                            </div>
+                                        )}
+                                        <button onClick={() => {setPendingOrder(null); setSelectedMilk(null);}} className="mt-12 text-slate-300 font-black uppercase text-2xl">Cancel</button>
+                                    </div>
                                 </div>
-                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-300 font-black uppercase text-lg md:text-2xl wide-tracking mt-8 md:mt-16 active:text-slate-900 transition-all">Cancel & Start Over</button>
-                            </div>
-                        </div>
-                    )}
+                            )}
 
-                    {showSuccess && (
-                        <div className="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center animate-in p-4">
-                            <div className="text-center">
-                                <div className="w-24 h-24 md:w-32 md:h-32 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 md:mb-8 shadow-xl">
-                                    <span className="text-white text-4xl md:text-6xl font-black">✓</span>
+                            {showSuccess && (
+                                <div className="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center animate-in">
+                                    <div className="w-32 h-32 bg-emerald-500 rounded-full flex items-center justify-center mb-8 shadow-xl text-white text-6xl font-black">✓</div>
+                                    <h1 className="text-6xl font-black uppercase italic">ORDER PLACED</h1>
                                 </div>
-                                <h1 className="text-4xl md:text-6xl font-black uppercase italic text-slate-900 mb-4">ORDER PLACED</h1>
-                                <p className="text-slate-400 font-bold uppercase tracking-widest text-sm md:text-base">Your coffee will be ready soon!</p>
-                            </div>
+                            )}
                         </div>
                     )}
                 </div>
