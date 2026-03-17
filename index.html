@@ -29,7 +29,6 @@
             -webkit-tap-highlight-color: transparent; 
         }
 
-        /* Cosmic Cards */
         .cosmic-card {
             background: var(--surface);
             border: 1px solid rgba(255, 255, 255, 0.05);
@@ -37,8 +36,6 @@
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
             transition: all 0.3s ease;
         }
-
-        .cosmic-card:active { transform: scale(0.97); }
 
         .btn-nebula {
             background: linear-gradient(135deg, var(--nebulous-blue) 0%, var(--electric-indigo) 100%);
@@ -59,13 +56,10 @@
             background: rgba(255, 255, 255, 0.07);
         }
 
-        .animate-nebula { animation: nebulaPulse 4s infinite alternate; }
-        @keyframes nebulaPulse {
-            from { text-shadow: 0 0 10px rgba(99, 102, 241, 0); }
-            to { text-shadow: 0 0 20px rgba(99, 102, 241, 0.4); }
-        }
-
-        #exit-zone { position: fixed; top: 0; right: 0; width: 80px; height: 80px; z-index: 10000; }
+        #exit-zone { position: fixed; top: 0; right: 0; width: 100px; height: 100px; z-index: 10000; background: transparent; }
+        
+        .animate-in { animation: slideUp 0.4s ease-out forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
@@ -111,6 +105,7 @@
             const [menuDrinks, setMenuDrinks] = useState([]);
             const [milks, setMilks] = useState([]);
             const [shiftStatus, setShiftStatus] = useState({ active: false, startTime: 0 });
+            const [showShiftModal, setShowShiftModal] = useState(false);
             
             const [customerName, setCustomerName] = useState('');
             const [pendingOrder, setPendingOrder] = useState(null);
@@ -155,6 +150,11 @@
                 }
             };
 
+            const toggleShift = () => {
+                if (shiftStatus.active) setShowShiftModal(true);
+                else db.ref('shift').set({ active: true, startTime: Date.now() });
+            };
+
             const finalizeOrder = () => {
                 const id = Date.now();
                 db.ref(`orders/${id}`).set({
@@ -164,6 +164,38 @@
                 });
                 setPendingOrder(null); setSelectedMilk(null); setCustomerName(''); setSpecialRequest(''); setShowSuccess(true);
                 setTimeout(() => setShowSuccess(false), 2000);
+            };
+
+            const shiftStats = useMemo(() => {
+                const activeOrders = history.filter(o => o.completedAt > shiftStatus.startTime);
+                const revenue = activeOrders.reduce((acc, o) => acc + Number(o.price), 0);
+                const drinkCounts = {};
+                let totalWait = 0;
+                activeOrders.forEach(o => {
+                    drinkCounts[o.flavor] = (drinkCounts[o.flavor] || 0) + 1;
+                    totalWait += (o.waitTime || 0);
+                });
+                const topDrink = Object.keys(drinkCounts).reduce((a, b) => drinkCounts[a] > drinkCounts[b] ? a : b, "N/A");
+                const avgWait = activeOrders.length > 0 ? (totalWait / activeOrders.length).toFixed(1) : 0;
+                return { revenue, topDrink, count: activeOrders.length, avgWait };
+            }, [history, shiftStatus]);
+
+            const exportCSV = (timeFrame) => {
+                const now = Date.now();
+                let filtered = history;
+                if (timeFrame === 'shift') filtered = history.filter(o => o.completedAt > shiftStatus.startTime);
+                else if (timeFrame === '24h') filtered = history.filter(o => o.completedAt > (now - 86400000));
+                
+                let csv = "Customer,Flavor,Temp,Milk,Price,WaitTime,Date\n";
+                filtered.forEach(o => { 
+                    csv += `${o.customer},${o.flavor},${o.temp},${o.milk},${o.price},${o.waitTime}m,${new Date(o.completedAt).toLocaleString()}\n`; 
+                });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.setAttribute('href', url);
+                a.setAttribute('download', `neb_export_${timeFrame}.csv`);
+                a.click();
             };
 
             return (
@@ -181,13 +213,13 @@
                             {view === 'queue' && (
                                 <div className="space-y-4">
                                     {orders.map(o => (
-                                        <div key={o.id} className="cosmic-card p-6 flex justify-between items-center">
+                                        <div key={o.id} className={`cosmic-card p-6 flex justify-between items-center border-l-[8px] ${o.temp === 'HOT' ? 'border-red-500' : 'border-blue-500'}`}>
                                             <div>
                                                 <h3 className="text-2xl font-black uppercase text-white">{o.customer}</h3>
                                                 <div className="flex gap-2 items-center mt-1">
-                                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${o.temp === 'HOT' ? 'bg-red-900 text-red-200' : 'bg-blue-900 text-blue-200'}`}>{o.temp}</span>
                                                     <p className="text-slate-400 font-bold uppercase text-sm">{o.flavor} • {o.milk}</p>
                                                 </div>
+                                                {o.note && <p className="text-indigo-400 text-xs mt-2 italic">"{o.note}"</p>}
                                             </div>
                                             <div className="flex items-center gap-6">
                                                 <OrderTimer startTime={o.startTime} />
@@ -197,44 +229,70 @@
                                     ))}
                                 </div>
                             )}
-                            {/* Barista Sub-views (History, Stats, Settings) remain functional here... */}
+
+                            {view === 'stats' && (
+                                <div className="space-y-6">
+                                    <div className="cosmic-card p-10 text-center">
+                                        <button onClick={toggleShift} className={`mb-8 px-10 py-4 rounded-full font-bold text-xs uppercase ${shiftStatus.active ? 'bg-red-500' : 'bg-emerald-500'}`}>
+                                            {shiftStatus.active ? 'End Shift' : 'Start Shift'}
+                                        </button>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div><p className="text-xs text-slate-500 uppercase">Drinks</p><p className="text-4xl font-black">{shiftStats.count}</p></div>
+                                            <div><p className="text-xs text-slate-500 uppercase">Revenue</p><p className="text-4xl font-black">${shiftStats.revenue.toFixed(2)}</p></div>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <button onClick={() => exportCSV('shift')} className="input-nebula p-4 text-xs font-bold uppercase">Export Shift CSV</button>
+                                        <button onClick={() => exportCSV('24h')} className="input-nebula p-4 text-xs font-bold uppercase">Export 24h CSV</button>
+                                    </div>
+                                </div>
+                            )}
+
                             {view === 'settings' && (
-                                <div className="space-y-4">
-                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full btn-nebula p-8 rounded-[2rem] font-black uppercase tracking-widest shadow-xl">Launch Kiosk Mode</button>
+                                <div className="space-y-6">
+                                    <div className="cosmic-card p-6">
+                                        <h3 className="font-bold uppercase mb-4">Inventory Management</h3>
+                                        <div className="space-y-3">
+                                            {menuDrinks.map((d, i) => (
+                                                <div key={i} className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
+                                                    <span className="text-sm font-bold">{d.name}</span>
+                                                    <button onClick={() => {
+                                                        const n = [...menuDrinks]; n[i].soldOut = !n[i].soldOut;
+                                                        db.ref('menu').set(n);
+                                                    }} className={`px-4 py-2 rounded-lg text-[10px] font-bold ${d.soldOut ? 'bg-red-500' : 'bg-slate-700'}`}>{d.soldOut ? 'OUT' : 'IN'}</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full btn-nebula p-8 rounded-[2rem] font-black uppercase tracking-widest">Launch Kiosk Mode</button>
                                 </div>
                             )}
                         </div>
                     )}
 
                     {appMode === 'kiosk' && !pendingOrder && (
-                        <div className="pt-10 pb-24 text-center">
+                        <div className="pt-10 pb-24 text-center px-4">
                             <div id="exit-zone" onClick={handleExitLogic}></div>
+                            <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter uppercase italic mb-12">NEBULOUS</h1>
                             
-                            <div className="mb-12">
-                                <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter uppercase italic animate-nebula">NEBULOUS</h1>
-                                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.6em]">Specialty Coffee Roasters</p>
-                            </div>
-                            
-                            <div className="max-w-xl mx-auto mb-10 px-4">
-                                <input 
-                                    type="text" 
-                                    placeholder="Enter Name" 
-                                    className="w-full input-nebula p-6 md:p-8 text-2xl md:text-3xl font-bold text-center" 
-                                    value={customerName} 
-                                    onChange={(e) => setCustomerName(e.target.value)} 
-                                />
-                            </div>
+                            <input 
+                                type="text" 
+                                placeholder="Enter Name" 
+                                className="w-full max-w-xl input-nebula p-6 md:p-8 text-2xl md:text-3xl font-bold text-center mb-10" 
+                                value={customerName} 
+                                onChange={(e) => setCustomerName(e.target.value)} 
+                            />
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl mx-auto px-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl mx-auto">
                                 {menuDrinks.filter(d => !d.soldOut).map(drink => (
-                                    <div key={drink.name} className="cosmic-card p-6 flex flex-col justify-between border-t border-white/10">
-                                        <div className="flex justify-between items-start mb-8">
-                                            <h3 className="text-2xl font-bold text-white uppercase tracking-tight text-left leading-none">{drink.name}</h3>
-                                            <span className="text-sm font-bold text-indigo-400 font-mono">${Number(drink.price).toFixed(2)}</span>
+                                    <div key={drink.name} className="cosmic-card p-6 flex flex-col justify-between">
+                                        <div className="flex justify-between mb-8">
+                                            <h3 className="text-2xl font-bold text-white uppercase text-left leading-none">{drink.name}</h3>
+                                            <span className="text-indigo-400 font-mono">${Number(drink.price).toFixed(2)}</span>
                                         </div>
                                         <div className="flex gap-3">
-                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="flex-1 py-5 rounded-2xl border border-red-500/30 text-red-400 font-bold text-xs tracking-widest uppercase hover:bg-red-500/10 transition-all">Hot</button>
-                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="flex-1 py-5 rounded-2xl btn-nebula font-bold text-xs tracking-widest uppercase active:scale-95">Iced</button>
+                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="flex-1 py-5 rounded-2xl border border-red-500/30 text-red-400 font-bold text-xs uppercase">Hot</button>
+                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="flex-1 py-5 rounded-2xl btn-nebula font-bold text-xs uppercase">Iced</button>
                                         </div>
                                     </div>
                                 ))}
@@ -245,35 +303,33 @@
                     {pendingOrder && (
                         <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-2xl z-[100] flex items-center justify-center p-6">
                             <div className="max-w-lg w-full text-center">
-                                <h2 className="text-5xl md:text-6xl font-black uppercase text-white tracking-tighter mb-4">{pendingOrder.name}</h2>
-                                <p className="text-indigo-400 font-bold uppercase tracking-[0.4em] text-xs mb-12">{pendingOrder.temp} EDITION</p>
+                                <h2 className="text-5xl font-black uppercase text-white mb-2">{pendingOrder.name}</h2>
+                                <p className="text-indigo-400 font-bold uppercase tracking-widest text-xs mb-10">{pendingOrder.temp} EDITION</p>
 
-                                <div className="space-y-10">
-                                    <div className="grid grid-cols-1 gap-3">
-                                        {milks.filter(m => !m.soldOut).map(m => (
-                                            <button key={m.name} onClick={() => setSelectedMilk(m.name)} 
-                                                className={`py-6 rounded-2xl text-lg font-bold uppercase transition-all border ${selectedMilk === m.name ? 'border-indigo-500 bg-indigo-500/20 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)]' : 'border-white/5 bg-white/5 text-slate-500'}`}>
-                                                {m.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    
-                                    {selectedMilk && (
-                                        <div className="space-y-8 animate-in">
-                                            <input type="text" placeholder="Special Requests?" className="w-full input-nebula p-6 text-center" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
-                                            <button onClick={finalizeOrder} className="w-full btn-nebula py-8 rounded-[2rem] font-black text-2xl tracking-widest shadow-2xl active:scale-95">Confirm</button>
-                                        </div>
-                                    )}
+                                <div className="space-y-4 mb-10">
+                                    {milks.filter(m => !m.soldOut).map(m => (
+                                        <button key={m.name} onClick={() => setSelectedMilk(m.name)} 
+                                            className={`w-full py-6 rounded-2xl text-lg font-bold uppercase border transition-all ${selectedMilk === m.name ? 'border-indigo-500 bg-indigo-500/20 text-white' : 'border-white/5 bg-white/5 text-slate-500'}`}>
+                                            {m.name}
+                                        </button>
+                                    ))}
                                 </div>
-                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-600 font-bold uppercase text-xs tracking-widest mt-12 hover:text-white transition-colors">Cancel Order</button>
+                                
+                                {selectedMilk && (
+                                    <div className="space-y-6 animate-in">
+                                        <input type="text" placeholder="Special Requests?" className="w-full input-nebula p-6 text-center" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
+                                        <button onClick={finalizeOrder} className="w-full btn-nebula py-8 rounded-[2rem] font-black text-2xl">Confirm</button>
+                                    </div>
+                                )}
+                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); }} className="mt-8 text-slate-500 uppercase text-xs font-bold">Go Back</button>
                             </div>
                         </div>
                     )}
 
                     {showSuccess && (
-                        <div className="fixed inset-0 bg-indigo-600 z-[200] flex flex-col items-center justify-center p-8 text-center animate-pulse">
-                            <h1 className="text-6xl font-black text-white uppercase italic tracking-tighter mb-4">LOCKED IN</h1>
-                            <p className="text-indigo-200 font-bold uppercase tracking-[0.3em] text-xs">Your order is being transmitted</p>
+                        <div className="fixed inset-0 bg-indigo-600 z-[200] flex flex-col items-center justify-center p-8 text-center">
+                            <h1 className="text-6xl font-black text-white uppercase italic tracking-tighter mb-4">CONFIRMED</h1>
+                            <p className="text-indigo-200 font-bold uppercase tracking-widest text-xs">Ready soon</p>
                         </div>
                     )}
                 </div>
