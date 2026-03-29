@@ -189,7 +189,7 @@ const DEFAULTS = {
   UNDO_MS:            5_000,
   QUEUE_WARN_COUNT:   6,
   DEFAULT_PIN:        '1234',
-  QUICK_REQUESTS:     ['Half Sweet','Less Ice'],
+  QUICK_REQUESTS:     ['Extra Shot','Half Sweet','Less Ice','Extra Hot','No Foam','Decaf','Oat Milk','Soy Milk'],
 };
 
 
@@ -554,10 +554,6 @@ const QueueCard = ({ order, onReady, onComplete, onNote }) => {
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">
               #{order.orderNumber ?? '—'}
             </span>
-            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full
-              ${order.temp==='HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
-              {order.temp}
-            </span>
             {order.ready && (
               <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-600">
                 READY ✓
@@ -568,6 +564,10 @@ const QueueCard = ({ order, onReady, onComplete, onNote }) => {
             {order.customer}
           </h3>
           <p className="text-sm font-medium truncate mt-0.5" style={{color:'var(--ink-mid)'}}>
+            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full mr-1.5 inline-block align-middle
+              ${order.temp==='HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
+              {order.temp}
+            </span>
             {order.flavor} · {order.milk}
           </p>
           {order.note && (
@@ -675,11 +675,11 @@ const HistoryView = ({ history, onClear }) => {
                 <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">
                   #{o.orderNumber??'—'}
                 </span>
-                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full
-                  ${o.temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{o.temp}</span>
               </div>
               <span className="display text-xl dt" style={{color:'var(--ink)'}}>{o.customer}</span>
               <p className="text-xs font-medium truncate mt-0.5" style={{color:'var(--ink-mid)'}}>
+                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full mr-1.5 inline-block align-middle
+                  ${o.temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{o.temp}</span>
                 {o.flavor} · {o.milk}
                 {o.note && ` · "${o.note}"`}
               </p>
