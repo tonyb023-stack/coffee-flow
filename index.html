@@ -563,7 +563,7 @@ const QueueCard = ({ order, onReady, onComplete, onNote }) => {
           <h3 className="display text-3xl leading-none dt" style={{color:'var(--ink)'}}>
             {order.customer}
           </h3>
-          <p className="text-sm font-medium truncate mt-0.5" style={{color:'var(--ink-mid)'}}>
+          <p className="text-sm font-black truncate mt-0.5" style={{color:'var(--ink)'}}>
             <span className={`text-[8px] font-black px-2 py-0.5 rounded-full mr-1.5 inline-block align-middle
               ${order.temp==='HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
               {order.temp}
