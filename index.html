@@ -511,7 +511,7 @@ const Badge = ({ count }) => count > 0 ? (
 
 /* ── Nav ──────────────────────────────────────────── */
 const BaristaNav = ({ view, setView, queueCount, online, darkMode }) => {
-  const tabs = ['queue','history','stats','settings'];
+  const tabs = ['queue','add','history','stats','settings'];
   return (
     <nav className="ds flex items-center gap-2 p-2 rounded-2xl shadow-soft border mb-6"
          style={{background:'var(--surface)',borderColor:'var(--border)'}}>
@@ -520,7 +520,7 @@ const BaristaNav = ({ view, setView, queueCount, online, darkMode }) => {
           <button key={t} onClick={() => setView(t)}
             className={`relative flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all
               ${view===t ? 'bg-slate-900 text-white' : 'text-slate-400 hover:text-slate-700'}`}>
-            {t}
+            {t === 'add' ? 'Add Order' : t}
             {t==='queue' && <Badge count={queueCount} />}
           </button>
         ))}
@@ -1593,6 +1593,13 @@ const App = () => {
               onNote={data.addBaristaNote}
             />
           )}
+          {baristaView === 'add' && (
+            <QuickAddView
+              menu={data.menu}
+              milks={data.milks}
+              onPlace={handleQuickAdd}
+            />
+          )}
           {baristaView === 'history' && (
             <HistoryView
               history={data.history}
@@ -1610,13 +1617,7 @@ const App = () => {
             />
           )}
           {baristaView === 'settings' && (
-            <div className="space-y-5">
-              <QuickAddView
-                menu={data.menu}
-                milks={data.milks}
-                onPlace={handleQuickAdd}
-              />
-              <SettingsView
+            <SettingsView
                 menu={data.menu}
                 milks={data.milks}
                 settings={data.settings}
@@ -1631,7 +1632,6 @@ const App = () => {
                 onUpdateSettings={data.updateSettings}
                 onLaunchKiosk={() => data.switchMode('kiosk')}
               />
-            </div>
           )}
 
           {/* Barista modals */}
