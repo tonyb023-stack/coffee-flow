@@ -189,7 +189,7 @@ const DEFAULTS = {
   UNDO_MS:            5_000,
   QUEUE_WARN_COUNT:   6,
   DEFAULT_PIN:        '1234',
-  QUICK_REQUESTS:     ['Extra Shot','Half Sweet','Less Ice','Extra Hot','No Foam','Decaf','Oat Milk','Soy Milk'],
+  QUICK_REQUESTS:     ['Half Sweet','Less Ice'],
 };
 
 
@@ -1074,7 +1074,6 @@ const SettingsView = ({
 const AttractScreen = ({ eventName, onTap }) => (
   <div className="attract-bg grain fixed inset-0 z-[300] flex flex-col items-center justify-center cursor-pointer"
        onClick={onTap}>
-    <div className="attract-cup text-9xl mb-8 select-none">☕</div>
     <h1 className="display text-7xl md:text-9xl text-white mb-4" style={{letterSpacing:'0.05em'}}>
       {eventName || DEFAULTS.APP_NAME}
     </h1>
