@@ -1,439 +1,1732 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nebulous Coffee Pro</title>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #fcfdfe; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
-        .animate-in { animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        
-        /* Pulsating border for the name field */
-        @keyframes border-pulse {
-            0% { border-color: rgba(15, 23, 42, 1); box-shadow: 0 0 0 0px rgba(15, 23, 42, 0.1); }
-            50% { border-color: rgba(15, 23, 42, 0.4); box-shadow: 0 0 0 8px rgba(15, 23, 42, 0.05); }
-            100% { border-color: rgba(15, 23, 42, 1); box-shadow: 0 0 0 0px rgba(15, 23, 42, 0.1); }
-        }
-        .name-pulse-border {
-            border: 2px solid #0f172a;
-            animation: border-pulse 3s infinite ease-in-out;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Nebulous Coffee Pro</title>
 
-        .confirm-btn { background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 15px 30px -5px rgba(16, 185, 129, 0.4); }
-        .soft-shadow { box-shadow: 0 4px 12px -1px rgba(0, 0, 0, 0.03), 0 2px 8px -1px rgba(0, 0, 0, 0.02); }
-        .card-shadow { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08); }
-        #exit-zone { position: fixed; top: 0; right: 0; width: 120px; height: 120px; z-index: 10000; cursor: pointer; background: transparent; }
-        .tight-tracking { letter-spacing: -0.05em; }
-        .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); }
-    </style>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+  <!-- React -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Fonts: Bebas Neue (display) + DM Sans (body) -->
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ═══════════════════════════════════════════════════════════════
+       STYLE SECTION — Safe to edit freely. All visual rules live here.
+       ═══════════════════════════════════════════════════════════════ */
+
+    :root {
+      /* Light mode (barista) */
+      --bg:           #f8f7f4;
+      --surface:      #ffffff;
+      --surface-2:    #f3f2ef;
+      --border:       #ebebeb;
+      --ink:          #0f0f0f;
+      --ink-mid:      #6b6b6b;
+      --ink-faint:    #c8c8c8;
+      --red:          #e84040;
+      --blue:         #3b82f6;
+      --green:        #22c55e;
+      --amber:        #f59e0b;
+
+      /* Dark mode (barista dark toggle) */
+      --bg-dark:      #0c0c0c;
+      --surface-dark: #181818;
+      --surface-2-dark:#242424;
+      --border-dark:  #2e2e2e;
+      --ink-dark:     #f0f0f0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.3s ease;
+    }
+
+    body.dark {
+      background: var(--bg-dark);
+    }
+
+    /* ── Typography ─────────────────────────────────── */
+    .display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.03em; }
+
+    /* ── Animations ─────────────────────────────────── */
+    @keyframes slideUp {
+      from { opacity:0; transform:translateY(24px); }
+      to   { opacity:1; transform:translateY(0);    }
+    }
+    @keyframes fadeIn {
+      from { opacity:0; } to { opacity:1; }
+    }
+    @keyframes popIn {
+      0%   { opacity:0; transform:scale(0.88); }
+      70%  { transform:scale(1.04); }
+      100% { opacity:1; transform:scale(1); }
+    }
+    @keyframes pulse-ring {
+      0%   { box-shadow:0 0 0 0 rgba(34,197,94,0.35); }
+      70%  { box-shadow:0 0 0 14px rgba(34,197,94,0); }
+      100% { box-shadow:0 0 0 0 rgba(34,197,94,0); }
+    }
+    @keyframes name-pulse {
+      0%,100% { border-color:rgba(15,15,15,0.9);  box-shadow:0 0 0 0px   rgba(15,15,15,0.08); }
+      50%      { border-color:rgba(15,15,15,0.3);  box-shadow:0 0 0 10px  rgba(15,15,15,0.04); }
+    }
+    @keyframes shimmer {
+      0%   { background-position:-400px 0; }
+      100% { background-position:400px 0; }
+    }
+    @keyframes undo-shrink {
+      from { width:100%; } to { width:0%; }
+    }
+    @keyframes attract-float {
+      0%,100% { transform:translateY(0px);  }
+      50%      { transform:translateY(-10px); }
+    }
+    @keyframes spin-slow {
+      from { transform:rotate(0deg); } to { transform:rotate(360deg); }
+    }
+
+    .animate-in  { animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) forwards; }
+    .animate-pop { animation: popIn  0.35s cubic-bezier(0.16,1,0.3,1) forwards; }
+    .animate-fade{ animation: fadeIn 0.25s ease forwards; }
+
+    /* ── Shadows ────────────────────────────────────── */
+    .shadow-soft { box-shadow:0 2px 12px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04); }
+    .shadow-card { box-shadow:0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04); }
+    .shadow-lift { box-shadow:0 20px 60px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.06); }
+
+    /* ── Kiosk name field ───────────────────────────── */
+    .name-pulse { border:2.5px solid #0f0f0f; animation:name-pulse 3s infinite ease-in-out; }
+
+    /* ── Confirm button ─────────────────────────────── */
+    .btn-confirm {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      box-shadow: 0 12px 32px -4px rgba(34,197,94,0.45);
+    }
+    .btn-confirm:active { transform:scale(0.97); }
+
+    /* ── Connection dot ─────────────────────────────── */
+    .conn-online  { background:#22c55e; animation:pulse-ring 2s infinite; }
+    .conn-offline { background:#e84040; }
+
+    /* ── Undo bar ────────────────────────────────────── */
+    .undo-bar { animation: undo-shrink 5s linear forwards; }
+
+    /* ── Attract screen ──────────────────────────────── */
+    .attract-cup { animation: attract-float 3s ease-in-out infinite; }
+    .attract-bg {
+      background: radial-gradient(ellipse at 50% 60%, rgba(34,197,94,0.12) 0%, transparent 70%),
+                  radial-gradient(ellipse at 20% 20%, rgba(59,130,246,0.08) 0%, transparent 50%),
+                  #0f0f0f;
+    }
+
+    /* ── Dark mode surface overrides ────────────────── */
+    body.dark .ds  { background:var(--surface-dark) !important; border-color:var(--border-dark) !important; }
+    body.dark .ds2 { background:var(--surface-2-dark) !important; }
+    body.dark .dt  { color:var(--ink-dark) !important; }
+    body.dark .dt-mid { color:#9a9a9a !important; }
+    body.dark .dt-faint { color:#444 !important; }
+
+    /* ── PIN pad ─────────────────────────────────────── */
+    .pin-dot-filled { background:#0f0f0f; transform:scale(1.1); }
+    body.dark .pin-dot-filled { background:#f0f0f0; }
+
+    /* ── Grain overlay for kiosk ─────────────────────── */
+    .grain::after {
+      content:'';
+      position:fixed; inset:0; pointer-events:none; z-index:0;
+      opacity:0.025;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size:200px;
+    }
+
+    /* ── Overflow queue warning ──────────────────────── */
+    .queue-warning { background:linear-gradient(135deg,#f59e0b,#d97706); }
+
+    /* Hide scrollbar on PIN screen */
+    .no-scrollbar::-webkit-scrollbar { display:none; }
+    .no-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
+
+    /* Order card ready state */
+    .order-ready { border-color:#22c55e !important; background:#f0fdf4 !important; }
+    body.dark .order-ready { background:#052e16 !important; }
+  </style>
 </head>
 <body>
-    <div id="root"></div>
+<div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo } = React;
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo, useCallback, Fragment } = React;
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDDDp160eqcOLhW90xoSd9xxHQuJr8k7sA",
-            authDomain: "coffee-order-tracker.firebaseapp.com",
-            projectId: "coffee-order-tracker",
-            storageBucket: "coffee-order-tracker.firebasestorage.app",
-            messagingSenderId: "650691026035",
-            appId: "1:650691026035:web:96e8bee8d3a5bb5d205e06",
-            measurementId: "G-7K3GCP3XL5"
-        };
 
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION 1 — APP CONSTANTS
+   Tweak thresholds, timing, and labels without touching any logic.
+   ═══════════════════════════════════════════════════════════════════ */
+const DEFAULTS = {
+  APP_NAME:           'NEBULOUS',
+  KIOSK_EXIT_TAPS:    3,
+  KIOSK_EXIT_MS:      800,
+  SUCCESS_MS:         2800,
+  IDLE_TIMEOUT_MS:    45_000,
+  ORDER_LATE_MINS:    5,
+  HISTORY_PAGE_SIZE:  30,
+  UNDO_MS:            5_000,
+  QUEUE_WARN_COUNT:   6,
+  DEFAULT_PIN:        '1234',
+  QUICK_REQUESTS:     ['Extra Shot','Half Sweet','Less Ice','Extra Hot','No Foam','Decaf','Oat Milk','Soy Milk'],
+};
 
-        const OrderTimer = ({ startTime }) => {
-            const [elapsed, setElapsed] = useState(0);
-            useEffect(() => {
-                const calculate = () => setElapsed(Math.round((Date.now() - startTime) / 60000));
-                calculate();
-                const interval = setInterval(calculate, 30000);
-                return () => clearInterval(interval);
-            }, [startTime]);
-            return (
-                <div className="text-right ml-4">
-                    <span className="text-xl font-black text-slate-900 uppercase italic leading-none">{elapsed}m</span>
-                    <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">WAITING</p>
-                </div>
-            );
-        };
 
-        const BaristaApp = () => {
-            const [view, setView] = useState('queue');
-            const [appMode, setAppMode] = useState(() => localStorage.getItem('app-mode') || 'barista');
-            const [orders, setOrders] = useState([]);
-            const [history, setHistory] = useState([]);
-            const [menuDrinks, setMenuDrinks] = useState([]);
-            const [milks, setMilks] = useState([]);
-            const [shiftStatus, setShiftStatus] = useState({ active: false, startTime: 0 });
-            const [showShiftModal, setShowShiftModal] = useState(false);
-            const [customerName, setCustomerName] = useState('');
-            const [pendingOrder, setPendingOrder] = useState(null);
-            const [selectedMilk, setSelectedMilk] = useState(null);
-            const [specialRequest, setSpecialRequest] = useState('');
-            const [showSuccess, setShowSuccess] = useState(false);
-            const clickRef = useRef({ count: 0, last: 0 });
-            
-            const lastMenuRef = useRef(null);
-            const lastMilkRef = useRef(null);
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION 2 — FIREBASE SERVICE LAYER
+   All DB operations live ONLY here. Swap backend by editing this
+   section exclusively — nothing else in the file changes.
+   ═══════════════════════════════════════════════════════════════════ */
+const FIREBASE_CONFIG = {
+  apiKey:            'AIzaSyDDDp160eqcOLhW90xoSd9xxHQuJr8k7sA',
+  authDomain:        'coffee-order-tracker.firebaseapp.com',
+  databaseURL:       'https://coffee-order-tracker-default-rtdb.firebaseio.com',
+  projectId:         'coffee-order-tracker',
+  storageBucket:     'coffee-order-tracker.firebasestorage.app',
+  messagingSenderId: '650691026035',
+  appId:             '1:650691026035:web:96e8bee8d3a5bb5d205e06',
+};
 
-            useEffect(() => {
-                const refs = {
-                    orders: db.ref('orders'),
-                    history: db.ref('history'),
-                    menu: db.ref('menu'),
-                    milks: db.ref('milks'),
-                    shift: db.ref('shift')
-                };
-                refs.orders.on('value', s => setOrders(Object.values(s.val() || {}).sort((a,b) => a.id - b.id)));
-                refs.history.on('value', s => setHistory(Object.values(s.val() || {}).sort((a,b) => b.completedAt - a.completedAt)));
-                refs.menu.on('value', s => setMenuDrinks(s.val() || []));
-                refs.milks.on('value', s => setMilks(s.val() || []));
-                refs.shift.on('value', s => setShiftStatus(s.val() || { active: false, startTime: 0 }));
-                return () => Object.values(refs).forEach(r => r.off());
-            }, []);
+if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+const DB = firebase.database();
 
-            const completeOrder = (order) => {
-                const completedAt = Date.now();
-                const waitTime = Math.round((completedAt - order.startTime) / 60000);
-                db.ref(`history/${order.id}`).set({ ...order, completedAt, waitTime, status: 'Completed' });
-                db.ref(`orders/${order.id}`).remove();
-            };
+const DbService = {
 
-            const toggleShift = () => {
-                if (shiftStatus.active) setShowShiftModal(true);
-                else db.ref('shift').set({ active: true, startTime: Date.now() });
-            };
+  /* ── Connection ─────────────────────────────────── */
+  subscribeConnection(cb) {
+    const ref = DB.ref('.info/connected');
+    ref.on('value', s => cb(s.val() === true));
+    return () => ref.off();
+  },
 
-            const confirmEndShift = () => {
-                db.ref('shift').set({ active: false, startTime: 0 });
-                setShowShiftModal(false);
-            };
+  /* ── Settings (event name, PIN, guest count, dark mode, warn threshold) */
+  subscribeSettings(cb) {
+    const ref = DB.ref('settings');
+    ref.on('value', s => cb(s.val() || {}));
+    return () => ref.off();
+  },
+  setSettings: (data) => DB.ref('settings').update(data),
 
-            const addMenuItem = () => {
-                db.ref('menu').set([...menuDrinks, { name: "", price: 5, soldOut: false }]);
-                setTimeout(() => lastMenuRef.current?.focus(), 150);
-            };
+  /* ── Orders ─────────────────────────────────────── */
+  subscribeOrders(cb) {
+    const ref = DB.ref('orders');
+    ref.on('value', s => {
+      const raw = s.val() || {};
+      const list = Object.entries(raw)
+        .map(([key, v]) => ({ ...v, _key: key }))
+        .sort((a, b) => a.startTime - b.startTime);
+      cb(list);
+    });
+    return () => ref.off();
+  },
 
-            const updateMenuItem = (index, field, value) => {
-                const newMenu = [...menuDrinks];
-                newMenu[index][field] = value;
-                db.ref('menu').set(newMenu);
-            };
+  async placeOrder(data) {
+    const res = await DB.ref('orderCounter').transaction(n => (n || 0) + 1);
+    const num = res.snapshot.val();
+    const ref = DB.ref('orders').push();
+    await ref.set({ ...data, _key: ref.key, orderNumber: num, startTime: Date.now(), status: 'Active', ready: false });
+    return num;
+  },
 
-            const addMilkItem = () => {
-                db.ref('milks').set([...milks, { name: "", soldOut: false }]);
-                setTimeout(() => lastMilkRef.current?.focus(), 150);
-            };
+  markReady(order) {
+    DB.ref(`orders/${order._key}/ready`).set(true);
+  },
 
-            const updateMilkItem = (index, field, value) => {
-                const newMilks = [...milks];
-                newMilks[index][field] = value;
-                db.ref('milks').set(newMilks);
-            };
+  completeOrder(order) {
+    const completedAt = Date.now();
+    const waitTime = Math.round((completedAt - order.startTime) / 60000);
+    DB.ref(`history/${order._key}`).set({ ...order, completedAt, waitTime, status: 'Completed' });
+    DB.ref(`orders/${order._key}`).remove();
+  },
 
-            const exportCSV = (timeFrame) => {
-                const now = Date.now();
-                let filtered = [];
-                if (timeFrame === 'shift') filtered = history.filter(o => o.completedAt > shiftStatus.startTime);
-                else if (timeFrame === '24h') filtered = history.filter(o => o.completedAt > (now - 86400000));
-                else if (timeFrame === 'week') filtered = history.filter(o => o.completedAt > (now - 604800000));
-                else if (timeFrame === 'month') filtered = history.filter(o => o.completedAt > (now - 2592000000));
+  undoComplete(order) {
+    // Restore back to active queue
+    DB.ref(`orders/${order._key}`).set({ ...order, status: 'Active', ready: false, completedAt: undefined, waitTime: undefined });
+    DB.ref(`history/${order._key}`).remove();
+  },
 
-                let csv = "Customer,Flavor,Temp,Milk,Price,Wait Time,Date\n";
-                filtered.forEach(o => { csv += `${o.customer},${o.flavor},${o.temp},${o.milk},${o.price},${o.waitTime}m,${new Date(o.completedAt).toLocaleString()}\n`; });
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.setAttribute('href', url);
-                a.setAttribute('download', `neb_export_${timeFrame}_${new Date().toLocaleDateString()}.csv`);
-                a.click();
-            };
+  addBaristaNote(orderKey, note) {
+    DB.ref(`history/${orderKey}/baristaNote`).set(note);
+  },
 
-            const shiftStats = useMemo(() => {
-                const activeOrders = history.filter(o => o.completedAt > shiftStatus.startTime);
-                const revenue = activeOrders.reduce((acc, o) => acc + Number(o.price), 0);
-                const drinkCounts = {};
-                const hourCounts = {};
-                let totalWait = 0;
-                activeOrders.forEach(o => {
-                    drinkCounts[o.flavor] = (drinkCounts[o.flavor] || 0) + 1;
-                    totalWait += (o.waitTime || 0);
-                    const hour = new Date(o.completedAt).getHours();
-                    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
-                });
-                const topDrink = Object.keys(drinkCounts).reduce((a, b) => drinkCounts[a] > drinkCounts[b] ? a : b, "N/A");
-                const avgWait = activeOrders.length > 0 ? (totalWait / activeOrders.length).toFixed(1) : 0;
-                const busiestHourRaw = Object.keys(hourCounts).reduce((a, b) => hourCounts[a] > hourCounts[b] ? a : b, null);
-                const busiestHour = busiestHourRaw !== null ? `${busiestHourRaw % 12 || 12}${busiestHourRaw >= 12 ? 'PM' : 'AM'}` : "N/A";
-                return { revenue, topDrink, count: activeOrders.length, avgWait, busiestHour };
-            }, [history, shiftStatus]);
+  /* ── History ─────────────────────────────────────── */
+  subscribeHistory(cb) {
+    const ref = DB.ref('history');
+    ref.on('value', s => {
+      const raw = s.val() || {};
+      cb(Object.values(raw).sort((a, b) => b.completedAt - a.completedAt));
+    });
+    return () => ref.off();
+  },
+  clearHistory: () => DB.ref('history').remove(),
 
-            const handleExitLogic = () => {
-                const now = Date.now();
-                if (now - clickRef.current.last > 800) clickRef.current.count = 0;
-                clickRef.current.count += 1;
-                clickRef.current.last = now;
-                if (clickRef.current.count >= 3) {
-                    setAppMode('barista');
-                    setView('settings');
-                    localStorage.setItem('app-mode', 'barista');
-                    clickRef.current.count = 0;
-                }
-            };
+  /* ── Menu ────────────────────────────────────────── */
+  subscribeMenu(cb) {
+    const ref = DB.ref('menu');
+    ref.on('value', s => cb(s.val() || []));
+    return () => ref.off();
+  },
+  setMenu: (m) => DB.ref('menu').set(m),
 
-            const finalizeOrder = () => {
-                const id = Date.now();
-                db.ref(`orders/${id}`).set({
-                    id, customer: customerName || "Guest", flavor: pendingOrder.name,
-                    price: pendingOrder.price || 0, temp: pendingOrder.temp, milk: selectedMilk,
-                    note: specialRequest, startTime: id, status: 'Active'
-                });
-                setPendingOrder(null); setSelectedMilk(null); setCustomerName(''); setSpecialRequest(''); setShowSuccess(true);
-                setTimeout(() => setShowSuccess(false), 2000);
-            };
+  /* ── Milks ───────────────────────────────────────── */
+  subscribeMilks(cb) {
+    const ref = DB.ref('milks');
+    ref.on('value', s => cb(s.val() || []));
+    return () => ref.off();
+  },
+  setMilks: (m) => DB.ref('milks').set(m),
 
-            return (
-                <div className="max-w-4xl mx-auto p-4 md:p-8">
-                    {appMode === 'barista' && (
-                        <>
-                            <nav className="grid grid-cols-4 gap-2 mb-8 bg-white p-2 rounded-3xl soft-shadow border border-slate-100">
-                                {['queue', 'history', 'stats', 'settings'].map(v => (
-                                    <button key={v} onClick={() => setView(v)} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${view === v ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>
-                                        {v}
-                                    </button>
-                                ))}
-                            </nav>
+  /* ── Shift ───────────────────────────────────────── */
+  subscribeShift(cb) {
+    const ref = DB.ref('shift');
+    ref.on('value', s => cb(s.val() || { active: false, startTime: 0 }));
+    return () => ref.off();
+  },
+  startShift: () => DB.ref('shift').set({ active: true, startTime: Date.now() }),
+  endShift:   () => DB.ref('shift').set({ active: false, startTime: 0 }),
+};
 
-                            {view === 'queue' && (
-                                <div className="grid grid-cols-1 gap-6 animate-in">
-                                    {orders.map(o => (
-                                        <div key={o.id} className={`bg-white p-8 rounded-[2.5rem] border-l-[12px] soft-shadow flex justify-between items-center transition-all ${o.temp === 'HOT' ? 'border-red-500' : 'border-blue-500'}`}>
-                                            <div className="flex-1">
-                                                <h3 className="text-3xl font-black uppercase italic tracking-tighter text-slate-900 mb-1">{o.customer}</h3>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${o.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>{o.temp}</span>
-                                                    <p className="text-slate-500 font-bold uppercase text-lg tracking-widest leading-none">{o.flavor} • {o.milk}</p>
-                                                </div>
-                                                {o.note && <div className="mt-3 inline-block bg-emerald-50 px-4 py-1 rounded-full"><p className="text-emerald-500 font-black text-xs italic uppercase">"{o.note}"</p></div>}
-                                            </div>
-                                            <div className="flex items-center gap-8">
-                                                <OrderTimer startTime={o.startTime} />
-                                                <button onClick={() => completeOrder(o)} className="w-20 h-20 bg-slate-900 text-white rounded-[1.5rem] font-black text-3xl hover:scale-105 active:scale-95 transition-all shadow-xl">✓</button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {orders.length === 0 && <div className="text-center py-20 text-slate-200 font-black uppercase italic text-4xl">No Orders</div>}
-                                </div>
-                            )}
 
-                            {view === 'history' && (
-                                <div className="bg-white rounded-[3rem] p-10 soft-shadow animate-in border border-slate-50">
-                                    <div className="flex justify-between mb-10 items-center">
-                                        <h2 className="font-black uppercase italic text-2xl tracking-tighter text-slate-900">Order History</h2>
-                                        <button onClick={() => { if(confirm("Clear history?")) db.ref('history').remove(); }} className="text-[10px] font-black uppercase text-red-500 tracking-widest bg-red-50 px-5 py-2 rounded-full">Clear History</button>
-                                    </div>
-                                    <div className="space-y-6">
-                                        {history.slice(0, 30).map(o => (
-                                            <div key={o.id} className="flex justify-between items-center bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                                                <div className="flex-1">
-                                                    <span className="font-black uppercase italic text-lg text-slate-900 leading-none">{o.customer}</span>
-                                                    <div className="flex gap-3 mt-1.5 pl-0">
-                                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${o.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>{o.temp}</span>
-                                                        <p className="text-sm font-bold text-slate-500 uppercase tracking-widest leading-none">{o.flavor} • {o.milk}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="text-xs font-black text-slate-900 uppercase italic">{o.waitTime}m</span>
-                                                    <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">MIN WAIT</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION 3 — DATA & LOGIC HOOK  (useAppData)
+   All state + business logic. Zero JSX. Zero styling.
+   ═══════════════════════════════════════════════════════════════════ */
+const useAppData = () => {
+  const [online,      setOnline]      = useState(true);
+  const [settings,    setSettingsState]= useState({ eventName:'', pin: DEFAULTS.DEFAULT_PIN, guestCount:0, darkMode:false, warnAt: DEFAULTS.QUEUE_WARN_COUNT });
+  const [orders,      setOrders]      = useState([]);
+  const [history,     setHistory]     = useState([]);
+  const [menu,        setMenu]        = useState([]);
+  const [milks,       setMilks]       = useState([]);
+  const [shift,       setShift]       = useState({ active:false, startTime:0 });
+  const [appMode,     setAppMode]     = useState(() => localStorage.getItem('app-mode') || 'barista');
 
-                            {view === 'stats' && (
-                                <div className="grid grid-cols-1 gap-6 animate-in">
-                                    <div className="bg-white p-10 rounded-[3rem] soft-shadow text-center border border-slate-50">
-                                        <button onClick={toggleShift} className={`mb-10 px-12 py-5 rounded-full font-black uppercase tracking-widest text-sm shadow-sm transition-all ${shiftStatus.active ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
-                                            {shiftStatus.active ? 'End Shift' : 'Start Shift'}
-                                        </button>
-                                        <div className="py-6 border-b border-slate-50">
-                                            <h2 className="text-slate-400 font-black uppercase tracking-widest text-xs mb-4">Drinks Served</h2>
-                                            <p className="text-8xl font-black italic tracking-tighter text-slate-900">{shiftStats.count}</p>
-                                        </div>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-8">
-                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Shift Revenue</p><p className="text-lg font-black text-slate-900">${shiftStats.revenue.toFixed(2)}</p></div>
-                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Top Drink</p><p className="text-lg font-black text-slate-900 uppercase italic">{shiftStats.topDrink}</p></div>
-                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Avg Wait</p><p className="text-lg font-black text-slate-900">{shiftStats.avgWait}m</p></div>
-                                            <div className="text-center"><p className="text-[9px] text-slate-300 font-bold uppercase mb-1">Peak Hour</p><p className="text-lg font-black text-slate-900 uppercase italic">{shiftStats.busiestHour}</p></div>
-                                        </div>
-                                        <div className="mt-8 pt-8 border-t border-slate-50">
-                                            <p className="text-[10px] text-slate-300 font-black uppercase mb-6">Download CSV Reports</p>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                                {['shift', '24h', 'week', 'month'].map(t => (
-                                                    <button key={t} onClick={() => exportCSV(t)} className="bg-slate-50 hover:bg-slate-900 hover:text-white text-slate-400 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all">{t}</button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {showShiftModal && (
-                                        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 modal-backdrop">
-                                            <div className="bg-white rounded-[3rem] p-10 max-w-sm w-full animate-in text-center shadow-2xl">
-                                                <h2 className="text-3xl font-black uppercase italic tight-tracking mb-4">End Shift?</h2>
-                                                <div className="flex flex-col gap-3">
-                                                    <button onClick={confirmEndShift} className="bg-red-500 text-white py-5 rounded-2xl font-black uppercase text-sm">Confirm End Shift</button>
-                                                    <button onClick={() => setShowShiftModal(false)} className="bg-slate-100 text-slate-400 py-5 rounded-2xl font-black uppercase text-sm">Cancel</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+  useEffect(() => {
+    const unsubs = [
+      DbService.subscribeConnection(setOnline),
+      DbService.subscribeSettings(s => setSettingsState(prev => ({ ...DEFAULTS, ...prev, ...s }))),
+      DbService.subscribeOrders(setOrders),
+      DbService.subscribeHistory(setHistory),
+      DbService.subscribeMenu(setMenu),
+      DbService.subscribeMilks(setMilks),
+      DbService.subscribeShift(setShift),
+    ];
+    return () => unsubs.forEach(fn => fn());
+  }, []);
 
-                            {view === 'settings' && (
-                                <div className="space-y-8 animate-in">
-                                    <div className="bg-white p-8 rounded-[3rem] soft-shadow border border-slate-50">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="font-black uppercase italic text-slate-900">Menu Management</h3>
-                                            <button onClick={addMenuItem} className="text-[10px] font-black uppercase bg-slate-900 text-white px-4 py-2 rounded-full shadow-lg">+ Add Drink</button>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {menuDrinks.map((d, i) => (
-                                                <div key={i} className="flex gap-3 items-center bg-slate-50 p-3 rounded-2xl">
-                                                    <input 
-                                                        ref={i === menuDrinks.length - 1 ? lastMenuRef : null} 
-                                                        placeholder="Drink Name"
-                                                        className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs border border-slate-100 outline-none" 
-                                                        value={d.name} 
-                                                        onChange={e => updateMenuItem(i, 'name', e.target.value)} 
-                                                    />
-                                                    <div className="flex items-center bg-white px-3 rounded-xl border border-slate-100">
-                                                        <span className="text-slate-400 font-bold text-xs">$</span>
-                                                        <input className="w-16 p-3 bg-transparent font-bold text-xs outline-none" type="number" value={d.price} onChange={e => updateMenuItem(i, 'price', e.target.value)} />
-                                                    </div>
-                                                    <button onClick={() => updateMenuItem(i, 'soldOut', !d.soldOut)} className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${d.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{d.soldOut ? 'OUT' : 'IN'}</button>
-                                                    <button onClick={() => { if(confirm("Delete?")) db.ref('menu').set(menuDrinks.filter((_, idx) => idx !== i)) }} className="p-3 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all">✕</button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+  // Sync dark mode to body class
+  useEffect(() => {
+    document.body.classList.toggle('dark', !!settings.darkMode);
+  }, [settings.darkMode]);
 
-                                    <div className="bg-white p-8 rounded-[3rem] soft-shadow border border-slate-50">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="font-black uppercase italic text-slate-900">Milk Options</h3>
-                                            <button onClick={addMilkItem} className="text-[10px] font-black uppercase bg-slate-900 text-white px-4 py-2 rounded-full shadow-lg">+ Add Milk</button>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {milks.map((m, i) => (
-                                                <div key={i} className="flex gap-3 items-center bg-slate-50 p-3 rounded-2xl">
-                                                    <input 
-                                                        ref={i === milks.length - 1 ? lastMilkRef : null} 
-                                                        placeholder="Milk Name"
-                                                        className="flex-1 bg-white p-3 rounded-xl font-bold uppercase text-xs border border-slate-100 outline-none" 
-                                                        value={m.name} 
-                                                        onChange={e => updateMilkItem(i, 'name', e.target.value)} 
-                                                    />
-                                                    <button onClick={() => updateMilkItem(i, 'soldOut', !m.soldOut)} className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${m.soldOut ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-500'}`}>{m.soldOut ? 'OUT' : 'IN'}</button>
-                                                    <button onClick={() => { if(confirm("Delete?")) db.ref('milks').set(milks.filter((_, idx) => idx !== i)) }} className="p-3 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all">✕</button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+  const switchMode = useCallback((mode) => {
+    setAppMode(mode);
+    localStorage.setItem('app-mode', mode);
+  }, []);
 
-                                    <button onClick={() => { setAppMode('kiosk'); localStorage.setItem('app-mode', 'kiosk'); }} className="w-full bg-slate-900 text-white p-10 rounded-[3rem] font-black uppercase text-2xl shadow-2xl italic tracking-tighter transition-transform active:scale-95">Launch Kiosk Mode</button>
-                                </div>
-                            )}
-                        </>
-                    )}
+  const updateSettings = useCallback((patch) => {
+    DbService.setSettings(patch);
+  }, []);
 
-                    {appMode === 'kiosk' && !pendingOrder && (
-                        <div className="animate-in pt-6 md:pt-12 pb-24 text-center">
-                            <div id="exit-zone" onClick={handleExitLogic}></div>
-                            <h1 className="text-5xl md:text-7xl font-black text-slate-900 tight-tracking uppercase italic leading-none mb-12">NEBULOUS</h1>
-                            <div className="max-w-2xl mx-auto mb-8 md:mb-12 px-4">
-                                <div className="bg-white p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] card-shadow border border-slate-50 transition-all">
-                                    <input 
-                                        type="text" 
-                                        placeholder="WHO IS THIS FOR?" 
-                                        className="w-full bg-slate-50 p-4 md:p-5 rounded-[1.5rem] md:rounded-[1.8rem] text-2xl md:text-3xl font-black uppercase text-center outline-none text-slate-900 transition-all name-pulse-border" 
-                                        value={customerName} 
-                                        onChange={(e) => setCustomerName(e.target.value)} 
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto px-4 transition-all duration-700">
-                                {menuDrinks.filter(d => !d.soldOut).map(drink => (
-                                    <div key={drink.name} className="bg-white rounded-[2rem] md:rounded-[2.5rem] card-shadow border border-slate-50 p-4 md:p-6 flex flex-col justify-between transition-all">
-                                        <div className="flex justify-between items-start mb-4 md:mb-6">
-                                            <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase italic tight-tracking text-left leading-tight">{drink.name}</h3>
-                                            <span className="text-xs md:text-sm font-bold text-slate-900 bg-slate-100 px-3 py-1 rounded-full shrink-0">${Number(drink.price).toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex gap-2 md:gap-3">
-                                            <button onClick={() => setPendingOrder({...drink, temp:'HOT'})} className="bg-red-500 flex-1 py-4 md:py-6 rounded-[1.2rem] md:rounded-[1.5rem] text-white font-black text-lg md:text-xl shadow-md">HOT</button>
-                                            <button onClick={() => setPendingOrder({...drink, temp:'ICED'})} className="bg-blue-500 flex-1 py-4 md:py-6 rounded-[1.2rem] md:rounded-[1.5rem] text-white font-black text-lg md:text-xl shadow-md">ICED</button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+  // Shift statistics (memoised)
+  const shiftStats = useMemo(() => {
+    const active = shift.startTime > 0
+      ? history.filter(o => o.completedAt > shift.startTime)
+      : [];
+    const revenue = active.reduce((a, o) => a + Number(o.price || 0), 0);
+    const drinkCounts = {}, hourCounts = {};
+    let totalWait = 0;
+    active.forEach(o => {
+      drinkCounts[o.flavor] = (drinkCounts[o.flavor] || 0) + 1;
+      totalWait += (o.waitTime || 0);
+      const h = new Date(o.completedAt).getHours();
+      hourCounts[h] = (hourCounts[h] || 0) + 1;
+    });
+    const kd = Object.keys(drinkCounts), kh = Object.keys(hourCounts);
+    const topDrink    = kd.length ? kd.reduce((a,b)=>drinkCounts[a]>drinkCounts[b]?a:b) : 'N/A';
+    const avgWait     = active.length ? (totalWait/active.length).toFixed(1) : '0';
+    const peakH       = kh.length ? kh.reduce((a,b)=>hourCounts[a]>hourCounts[b]?a:b) : null;
+    const busiestHour = peakH !== null ? `${peakH%12||12}${Number(peakH)>=12?'PM':'AM'}` : 'N/A';
+    return { revenue, topDrink, count:active.length, avgWait, busiestHour, orders:active };
+  }, [history, shift]);
 
-                    {pendingOrder && (
-                        <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center p-4 md:p-8 overflow-y-auto">
-                            <div className="max-w-xl w-full animate-in text-center py-8">
-                                <span className={`text-xs md:text-sm font-black px-4 py-2 rounded-full mb-4 inline-block ${pendingOrder.temp === 'HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>{pendingOrder.temp}</span>
-                                <h2 className="text-4xl md:text-7xl font-black uppercase italic mb-12 tracking-tighter leading-none">{pendingOrder.name}</h2>
-                                <div className="space-y-8">
-                                    <div className="grid grid-cols-1 gap-3">
-                                        <p className="text-slate-900 font-black uppercase text-xl underline decoration-2 underline-offset-8">SELECT YOUR MILK</p>
-                                        {milks.filter(m => !m.soldOut).map(m => (
-                                            <button key={m.name} onClick={() => setSelectedMilk(m.name)} className={`py-4 md:py-8 rounded-[1.5rem] md:rounded-[2.8rem] text-xl md:text-3xl font-black uppercase italic duration-300 border-2 md:border-4 ${selectedMilk === m.name ? 'bg-slate-900 text-white border-slate-900 scale-[1.03]' : 'bg-white text-slate-900 border-slate-50'}`}>{m.name}</button>
-                                        ))}
-                                    </div>
-                                    {selectedMilk && (
-                                        <div className="space-y-8 animate-in">
-                                            <input type="text" placeholder="SPECIAL REQUESTS?" className="w-full bg-slate-50 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2.8rem] text-lg md:text-xl font-bold uppercase border border-slate-100 outline-none text-center" value={specialRequest} onChange={(e) => setSpecialRequest(e.target.value)} />
-                                            <div className="pt-4">
-                                                <p className="text-black font-black text-2xl md:text-4xl mb-4 italic tracking-tighter leading-none">TOTAL: ${Number(pendingOrder.price).toFixed(2)}</p>
-                                                <button onClick={finalizeOrder} className="w-full confirm-btn text-white py-6 md:py-11 rounded-[1.5rem] md:rounded-[3rem] font-black uppercase text-2xl md:text-4xl shadow-xl">Confirm Order</button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                <button onClick={() => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); }} className="text-slate-300 font-black uppercase text-lg mt-8">Cancel & Start Over</button>
-                            </div>
-                        </div>
-                    )}
+  // CSV export with proper escaping
+  const exportCSV = useCallback((frame) => {
+    const now = Date.now();
+    const cuts = { shift:shift.startTime, '24h':now-86400000, week:now-604800000, month:now-2592000000 };
+    const rows = history.filter(o => o.completedAt > (cuts[frame]||0));
+    const esc  = v => `"${String(v??'').replace(/"/g,'""')}"`;
+    let csv = 'Order#,Customer,Flavor,Temp,Milk,Special Request,Price,Wait,Note,Date\n';
+    rows.forEach(o => {
+      csv += [o.orderNumber||'',esc(o.customer),esc(o.flavor),o.temp,esc(o.milk),esc(o.note),o.price,`${o.waitTime}m`,esc(o.baristaNote),new Date(o.completedAt).toLocaleString()].join(',') + '\n';
+    });
+    const url = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    const a   = Object.assign(document.createElement('a'),{href:url,download:`neb_${frame}_${Date.now()}.csv`});
+    a.click(); URL.revokeObjectURL(url);
+  }, [history, shift]);
 
-                    {showSuccess && (
-                        <div className="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center animate-in p-4 text-center">
-                            <div className="w-24 h-24 md:w-32 md:h-32 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
-                                <span className="text-white text-4xl md:text-6xl font-black">✓</span>
-                            </div>
-                            <h1 className="text-4xl md:text-6xl font-black uppercase italic text-slate-900 mb-4 tracking-tighter leading-none">ORDER PLACED</h1>
-                            <p className="text-slate-400 font-bold uppercase tracking-widest">Your coffee will be ready soon!</p>
-                        </div>
-                    )}
-                </div>
-            );
-        };
+  // Menu helpers
+  const addMenuItem        = ()          => DbService.setMenu([...menu, {name:'',price:5,soldOut:false}]);
+  const updateMenuItem     = (i,f,v)    => DbService.setMenu(menu.map((d,idx)=>idx===i?{...d,[f]:v}:d));
+  const deleteMenuItem     = (i)        => DbService.setMenu(menu.filter((_,idx)=>idx!==i));
+  const toggleDrinkSoldOut = (i)        => updateMenuItem(i,'soldOut',!menu[i].soldOut);
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<BaristaApp />);
-    </script>
+  // Milk helpers
+  const addMilkItem        = ()          => DbService.setMilks([...milks, {name:'',soldOut:false}]);
+  const updateMilkItem     = (i,f,v)    => DbService.setMilks(milks.map((m,idx)=>idx===i?{...m,[f]:v}:m));
+  const deleteMilkItem     = (i)        => DbService.setMilks(milks.filter((_,idx)=>idx!==i));
+  const toggleMilkSoldOut  = (i)        => updateMilkItem(i,'soldOut',!milks[i].soldOut);
+
+  // Alert sound (Web Audio API — no external file needed)
+  const playChime = useCallback(() => {
+    try {
+      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+      const play = (freq, start, dur, vol=0.3) => {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0,ctx.currentTime+start);
+        gain.gain.linearRampToValueAtTime(vol,ctx.currentTime+start+0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+start+dur);
+        osc.start(ctx.currentTime+start);
+        osc.stop(ctx.currentTime+start+dur+0.05);
+      };
+      play(880, 0,    0.25);
+      play(1100,0.18, 0.25);
+      play(1320,0.36, 0.4);
+    } catch(_) {}
+    try { navigator.vibrate && navigator.vibrate([100,50,100]); } catch(_) {}
+  }, []);
+
+  return {
+    online, settings, orders, history, menu, milks, shift, appMode, shiftStats,
+    switchMode, updateSettings, exportCSV, playChime,
+    placeOrder:        DbService.placeOrder,
+    markReady:         DbService.markReady,
+    completeOrder:     DbService.completeOrder,
+    undoComplete:      DbService.undoComplete,
+    addBaristaNote:    DbService.addBaristaNote,
+    clearHistory:      DbService.clearHistory,
+    startShift:        DbService.startShift,
+    endShift:          DbService.endShift,
+    addMenuItem,    updateMenuItem,    deleteMenuItem,    toggleDrinkSoldOut,
+    addMilkItem,    updateMilkItem,    deleteMilkItem,    toggleMilkSoldOut,
+  };
+};
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION 4 — SHARED UI PRIMITIVES
+   Small reusable components used by both modes.
+   Safe to restyle. No logic, no DB calls.
+   ═══════════════════════════════════════════════════════════════════ */
+
+const ConnectionDot = ({ online }) => (
+  <div className="flex items-center gap-1.5">
+    <span className={`w-2 h-2 rounded-full block flex-shrink-0 ${online?'conn-online':'conn-offline'}`} />
+    <span className="text-[9px] font-bold uppercase tracking-widest" style={{color:'var(--ink-faint)'}}>
+      {online ? 'Live' : 'Offline'}
+    </span>
+  </div>
+);
+
+const OrderTimer = ({ startTime }) => {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const calc = () => setElapsed(Math.round((Date.now()-startTime)/60000));
+    calc();
+    const id = setInterval(calc, 60000);
+    return () => clearInterval(id);
+  }, [startTime]);
+  const late = elapsed >= DEFAULTS.ORDER_LATE_MINS;
+  return (
+    <div className="text-right flex-shrink-0">
+      <span className={`text-2xl display block leading-none ${late?'text-red-500':'dt'}`} style={late?{}:{color:'var(--ink)'}}>
+        {elapsed}m
+      </span>
+      <span className="text-[8px] font-bold uppercase tracking-widest" style={{color:'var(--ink-faint)'}}>WAIT</span>
+    </div>
+  );
+};
+
+const Modal = ({ children, onClose }) => (
+  <div className="fixed inset-0 z-[600] flex items-center justify-center p-5"
+       style={{background:'rgba(0,0,0,0.55)',backdropFilter:'blur(10px)'}}
+       onClick={e => { if(e.target===e.currentTarget && onClose) onClose(); }}>
+    <div className="ds bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-lift animate-pop">
+      {children}
+    </div>
+  </div>
+);
+
+const Pill = ({ label, color='slate', onClick, active }) => {
+  const colors = {
+    slate: active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
+    red:   'bg-red-500 text-white',
+    green: 'bg-emerald-500 text-white',
+  };
+  return (
+    <button onClick={onClick}
+      className={`px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${colors[color]||colors.slate}`}>
+      {label}
+    </button>
+  );
+};
+
+const Badge = ({ count }) => count > 0 ? (
+  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-black
+                   min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center leading-none z-10">
+    {count > 9 ? '9+' : count}
+  </span>
+) : null;
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION 5 — BARISTA UI VIEWS
+   All barista screens. Safe to restyle.
+   Props listed above each component. No Firebase knowledge.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Nav ──────────────────────────────────────────── */
+const BaristaNav = ({ view, setView, queueCount, online, darkMode }) => {
+  const tabs = ['queue','history','stats','settings'];
+  return (
+    <nav className="ds flex items-center gap-2 p-2 rounded-2xl shadow-soft border mb-6"
+         style={{background:'var(--surface)',borderColor:'var(--border)'}}>
+      <div className="flex gap-1 flex-1">
+        {tabs.map(t => (
+          <button key={t} onClick={() => setView(t)}
+            className={`relative flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all
+              ${view===t ? 'bg-slate-900 text-white' : 'text-slate-400 hover:text-slate-700'}`}>
+            {t}
+            {t==='queue' && <Badge count={queueCount} />}
+          </button>
+        ))}
+      </div>
+      <div className="pl-2 pr-1">
+        <ConnectionDot online={online} />
+      </div>
+    </nav>
+  );
+};
+
+/* ── Queue card ───────────────────────────────────── */
+const QueueCard = ({ order, onReady, onComplete, onNote }) => {
+  const [showNote, setShowNote] = useState(false);
+  const [noteVal,  setNoteVal]  = useState(order.baristaNote || '');
+
+  const saveNote = () => {
+    onNote(order._key, noteVal);
+    setShowNote(false);
+  };
+
+  return (
+    <div className={`ds rounded-[2rem] border-l-[10px] shadow-soft p-6 transition-all
+      ${order.ready ? 'order-ready border-green-500' : order.temp==='HOT' ? 'border-red-400' : 'border-blue-400'}`}
+      style={{background:'var(--surface)',borderColor: order.ready?'#22c55e': order.temp==='HOT'?'#e84040':'#3b82f6'}}>
+
+      {/* Top row */}
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">
+              #{order.orderNumber ?? '—'}
+            </span>
+            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full
+              ${order.temp==='HOT' ? 'bg-red-100 text-red-500' : 'bg-blue-100 text-blue-500'}`}>
+              {order.temp}
+            </span>
+            {order.ready && (
+              <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-600">
+                READY ✓
+              </span>
+            )}
+          </div>
+          <h3 className="display text-3xl leading-none dt" style={{color:'var(--ink)'}}>
+            {order.customer}
+          </h3>
+          <p className="text-sm font-medium truncate mt-0.5" style={{color:'var(--ink-mid)'}}>
+            {order.flavor} · {order.milk}
+          </p>
+          {order.note && (
+            <span className="inline-block mt-2 bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">
+              ✎ {order.note}
+            </span>
+          )}
+        </div>
+        <OrderTimer startTime={order.startTime} />
+      </div>
+
+      {/* Note row */}
+      {showNote ? (
+        <div className="flex gap-2 mt-3 animate-in">
+          <input autoFocus value={noteVal} onChange={e=>setNoteVal(e.target.value)}
+            placeholder="Add barista note…"
+            className="flex-1 bg-slate-50 px-4 py-2 rounded-xl text-xs font-medium border outline-none"
+            style={{borderColor:'var(--border)'}}
+            onKeyDown={e=>e.key==='Enter'&&saveNote()} />
+          <button onClick={saveNote} className="bg-slate-900 text-white px-4 rounded-xl text-xs font-bold">Save</button>
+          <button onClick={()=>setShowNote(false)} className="px-3 rounded-xl text-xs text-slate-400">✕</button>
+        </div>
+      ) : (
+        <button onClick={()=>setShowNote(true)}
+          className="text-[9px] font-bold uppercase tracking-widest mt-3 block"
+          style={{color:'var(--ink-faint)'}}>
+          {order.baristaNote ? `📝 ${order.baristaNote}` : '+ add note'}
+        </button>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex gap-3 mt-4">
+        {!order.ready && (
+          <button onClick={() => onReady(order)}
+            className="flex-1 py-4 rounded-xl text-sm font-bold uppercase tracking-widest transition-all
+                       bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-100">
+            Mark Ready
+          </button>
+        )}
+        <button onClick={() => onComplete(order)}
+          className={`py-4 rounded-xl font-black text-white text-xl transition-all hover:scale-105 active:scale-95 shadow-md
+            ${order.ready ? 'flex-1 bg-green-500' : 'w-16 bg-slate-900'}`}>
+          ✓
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ── Queue view ───────────────────────────────────── */
+const QueueView = ({ orders, settings, onReady, onComplete, onNote }) => {
+  const warn = settings.warnAt || DEFAULTS.QUEUE_WARN_COUNT;
+  return (
+    <div className="space-y-4 animate-in">
+      {orders.length >= warn && (
+        <div className="queue-warning text-white px-6 py-4 rounded-2xl font-bold text-sm text-center shadow-md animate-in">
+          ⚡ {orders.length} orders in queue — kiosk will show a wait warning to customers
+        </div>
+      )}
+      {orders.length === 0 && (
+        <div className="text-center py-24 display text-5xl" style={{color:'var(--ink-faint)'}}>
+          QUEUE CLEAR
+        </div>
+      )}
+      {orders.map(o => (
+        <QueueCard key={o._key} order={o} onReady={onReady} onComplete={onComplete} onNote={onNote} />
+      ))}
+    </div>
+  );
+};
+
+/* ── History view ─────────────────────────────────── */
+const HistoryView = ({ history, onClear }) => {
+  const [page, setPage] = useState(1);
+  const shown   = history.slice(0, page * DEFAULTS.HISTORY_PAGE_SIZE);
+  const hasMore = shown.length < history.length;
+
+  return (
+    <div className="ds rounded-[2.5rem] p-8 shadow-soft border animate-in"
+         style={{background:'var(--surface)',borderColor:'var(--border)'}}>
+      <div className="flex justify-between items-start mb-8">
+        <div>
+          <h2 className="display text-3xl dt" style={{color:'var(--ink)'}}>ORDER HISTORY</h2>
+          <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{color:'var(--ink-faint)'}}>
+            {history.length} total
+          </p>
+        </div>
+        <button onClick={onClear}
+          className="text-[10px] font-bold uppercase tracking-widest text-red-400 bg-red-50 px-4 py-2 rounded-full hover:bg-red-500 hover:text-white transition-all">
+          Clear All
+        </button>
+      </div>
+
+      {history.length === 0 && (
+        <p className="text-center py-12 display text-3xl" style={{color:'var(--ink-faint)'}}>NO HISTORY</p>
+      )}
+
+      <div className="space-y-3">
+        {shown.map(o => (
+          <div key={o._key||o.id}
+               className="ds2 flex justify-between items-start p-4 rounded-2xl border gap-3"
+               style={{background:'var(--surface-2)',borderColor:'var(--border)'}}>
+            <div className="flex-1 min-w-0">
+              <div className="flex gap-2 items-center mb-1 flex-wrap">
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">
+                  #{o.orderNumber??'—'}
+                </span>
+                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full
+                  ${o.temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{o.temp}</span>
+              </div>
+              <span className="display text-xl dt" style={{color:'var(--ink)'}}>{o.customer}</span>
+              <p className="text-xs font-medium truncate mt-0.5" style={{color:'var(--ink-mid)'}}>
+                {o.flavor} · {o.milk}
+                {o.note && ` · "${o.note}"`}
+              </p>
+              {o.baristaNote && (
+                <p className="text-[10px] font-medium mt-1" style={{color:'var(--ink-faint)'}}>
+                  📝 {o.baristaNote}
+                </p>
+              )}
+            </div>
+            <div className="text-right flex-shrink-0">
+              <span className="display text-xl" style={{color:'var(--ink)'}}>{o.waitTime}m</span>
+              <p className="text-[8px] font-bold uppercase tracking-widest" style={{color:'var(--ink-faint)'}}>WAIT</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {hasMore && (
+        <button onClick={()=>setPage(p=>p+1)}
+          className="w-full mt-5 py-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all"
+          style={{background:'var(--surface-2)',color:'var(--ink-mid)'}}>
+          Load More ({history.length - shown.length} remaining)
+        </button>
+      )}
+    </div>
+  );
+};
+
+/* ── Stats view ───────────────────────────────────── */
+const StatsView = ({ shift, shiftStats, settings, onStartShift, onEndShiftRequest, exportCSV }) => {
+  const pct = settings.guestCount > 0
+    ? Math.min(100, Math.round((shiftStats.count / settings.guestCount) * 100))
+    : null;
+
+  const cells = [
+    { label:'Revenue',   val:`$${shiftStats.revenue.toFixed(2)}` },
+    { label:'Top Drink', val:shiftStats.topDrink, italic:true },
+    { label:'Avg Wait',  val:`${shiftStats.avgWait}m` },
+    { label:'Peak Hour', val:shiftStats.busiestHour, italic:true },
+  ];
+
+  return (
+    <div className="animate-in space-y-5">
+      <div className="ds rounded-[2.5rem] p-8 shadow-soft border text-center"
+           style={{background:'var(--surface)',borderColor:'var(--border)'}}>
+
+        <button onClick={shift.active ? onEndShiftRequest : onStartShift}
+          className={`px-10 py-4 rounded-full font-bold uppercase tracking-widest text-sm transition-all shadow-sm mb-4
+            ${shift.active ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+          {shift.active ? '● End Shift' : 'Start Shift'}
+        </button>
+
+        {shift.active && (
+          <p className="text-[9px] font-bold uppercase tracking-widest mb-6 text-emerald-500">
+            Started {new Date(shift.startTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+          </p>
+        )}
+
+        <div className="py-6 border-t border-b" style={{borderColor:'var(--border)'}}>
+          <p className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{color:'var(--ink-faint)'}}>
+            Drinks Served
+          </p>
+          <p className="display text-8xl dt" style={{color:'var(--ink)'}}>{shiftStats.count}</p>
+        </div>
+
+        {/* Guest pacing bar */}
+        {pct !== null && (
+          <div className="my-6">
+            <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest mb-2" style={{color:'var(--ink-faint)'}}>
+              <span>Event Pacing</span>
+              <span>{shiftStats.count} / {settings.guestCount} guests ({pct}%)</span>
+            </div>
+            <div className="w-full rounded-full h-2 overflow-hidden" style={{background:'var(--surface-2)'}}>
+              <div className="h-full rounded-full bg-emerald-500 transition-all duration-700"
+                   style={{width:`${pct}%`}} />
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4 py-6">
+          {cells.map(({label,val,italic})=>(
+            <div key={label} className="text-center">
+              <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{color:'var(--ink-faint)'}}>{label}</p>
+              <p className={`text-lg font-black dt ${italic?'italic':''}`} style={{color:'var(--ink)'}}>{val}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* CSV export */}
+        <div className="pt-6 border-t" style={{borderColor:'var(--border)'}}>
+          <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{color:'var(--ink-faint)'}}>Export CSV</p>
+          <div className="grid grid-cols-4 gap-2">
+            {['shift','24h','week','month'].map(t=>(
+              <button key={t} onClick={()=>exportCSV(t)}
+                className="py-3 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all"
+                style={{background:'var(--surface-2)',color:'var(--ink-mid)'}}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Quick-add panel (barista walk-up orders) ─────── */
+const QuickAddView = ({ menu, milks, onPlace }) => {
+  const [step,     setStep]    = useState('drink');  // drink | temp | milk | confirm
+  const [name,     setName]    = useState('');
+  const [drink,    setDrink]   = useState(null);
+  const [temp,     setTemp]    = useState(null);
+  const [milk,     setMilk]    = useState(null);
+  const [note,     setNote]    = useState('');
+
+  const reset = () => { setStep('drink'); setName(''); setDrink(null); setTemp(null); setMilk(null); setNote(''); };
+
+  const confirm = async () => {
+    await onPlace({
+      customer: name.trim() || 'Walk-up',
+      flavor:   drink.name,
+      price:    drink.price || 0,
+      temp, milk, note: note.trim(),
+    });
+    reset();
+  };
+
+  const avail = menu.filter(d=>!d.soldOut);
+  const availMilks = milks.filter(m=>!m.soldOut);
+
+  return (
+    <div className="ds rounded-[2.5rem] p-8 shadow-soft border animate-in"
+         style={{background:'var(--surface)',borderColor:'var(--border)'}}>
+      <h2 className="display text-3xl dt mb-6" style={{color:'var(--ink)'}}>QUICK ADD</h2>
+
+      {/* Name */}
+      <input value={name} onChange={e=>setName(e.target.value)}
+        placeholder="Customer name (optional)"
+        className="w-full px-5 py-4 rounded-2xl text-sm font-medium mb-6 outline-none border"
+        style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}} />
+
+      {/* Drink select */}
+      <p className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{color:'var(--ink-faint)'}}>Drink</p>
+      <div className="grid grid-cols-2 gap-2 mb-5">
+        {avail.map(d=>(
+          <button key={d.name} onClick={()=>setDrink(d)}
+            className={`py-4 px-3 rounded-2xl text-sm font-bold uppercase tracking-wide transition-all text-left
+              ${drink?.name===d.name ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+            style={drink?.name===d.name?{}:{background:'var(--surface-2)'}}>
+            {d.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Temp */}
+      {drink && (
+        <div className="animate-in mb-5">
+          <p className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{color:'var(--ink-faint)'}}>Temperature</p>
+          <div className="flex gap-3">
+            {['HOT','ICED'].map(t=>(
+              <button key={t} onClick={()=>setTemp(t)}
+                className={`flex-1 py-4 rounded-2xl font-black text-lg transition-all
+                  ${temp===t ? (t==='HOT'?'bg-red-500 text-white':'bg-blue-500 text-white')
+                              : (t==='HOT'?'bg-red-50 text-red-400':'bg-blue-50 text-blue-400')}`}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Milk */}
+      {temp && (
+        <div className="animate-in mb-5">
+          <p className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{color:'var(--ink-faint)'}}>Milk</p>
+          <div className="grid grid-cols-2 gap-2">
+            {availMilks.map(m=>(
+              <button key={m.name} onClick={()=>setMilk(m.name)}
+                className={`py-3 rounded-2xl text-sm font-bold uppercase tracking-wide transition-all
+                  ${milk===m.name ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+                style={milk===m.name?{}:{background:'var(--surface-2)'}}>
+                {m.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Note + confirm */}
+      {milk && (
+        <div className="animate-in space-y-3">
+          <input value={note} onChange={e=>setNote(e.target.value)}
+            placeholder="Special request (optional)"
+            className="w-full px-5 py-4 rounded-2xl text-sm font-medium outline-none border"
+            style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}} />
+          <button onClick={confirm}
+            className="w-full btn-confirm text-white py-5 rounded-2xl font-black text-lg uppercase tracking-widest">
+            Place Order — ${Number(drink.price).toFixed(2)}
+          </button>
+        </div>
+      )}
+
+      {(drink||temp||milk) && (
+        <button onClick={reset}
+          className="w-full mt-3 py-3 text-[10px] font-bold uppercase tracking-widest"
+          style={{color:'var(--ink-faint)'}}>
+          Clear
+        </button>
+      )}
+    </div>
+  );
+};
+
+/* ── Settings view ────────────────────────────────── */
+const SettingsView = ({
+  menu, milks, settings,
+  onAddDrink, onUpdateDrink, onDeleteDrink, onToggleDrinkSoldOut,
+  onAddMilk,  onUpdateMilk,  onDeleteMilk,  onToggleMilkSoldOut,
+  onUpdateSettings, onLaunchKiosk,
+}) => {
+  const lastMenuRef = useRef(null);
+  const lastMilkRef = useRef(null);
+
+  const handleAddDrink = () => { onAddDrink(); setTimeout(()=>lastMenuRef.current?.focus(),150); };
+  const handleAddMilk  = () => { onAddMilk();  setTimeout(()=>lastMilkRef.current?.focus(),150); };
+
+  const card = 'ds rounded-[2.5rem] p-8 shadow-soft border';
+  const cardStyle = {background:'var(--surface)',borderColor:'var(--border)'};
+
+  return (
+    <div className="space-y-6 animate-in">
+
+      {/* ── Event Config ─────────────────────────── */}
+      <div className={card} style={cardStyle}>
+        <h3 className="display text-2xl dt mb-6" style={{color:'var(--ink)'}}>EVENT CONFIG</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="text-[9px] font-bold uppercase tracking-widest block mb-2" style={{color:'var(--ink-faint)'}}>
+              Kiosk Display Name
+            </label>
+            <input value={settings.eventName||''}
+              onChange={e=>onUpdateSettings({eventName:e.target.value})}
+              placeholder={DEFAULTS.APP_NAME}
+              className="w-full px-5 py-4 rounded-2xl text-sm font-bold uppercase outline-none border"
+              style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[9px] font-bold uppercase tracking-widest block mb-2" style={{color:'var(--ink-faint)'}}>
+                Exit PIN (4-digit)
+              </label>
+              <input value={settings.pin||''}
+                onChange={e=>{ if(e.target.value.length<=4 && /^\d*$/.test(e.target.value)) onUpdateSettings({pin:e.target.value}); }}
+                placeholder="1234" type="password" maxLength={4}
+                className="w-full px-5 py-4 rounded-2xl text-sm font-black outline-none border text-center tracking-[0.5em]"
+                style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}} />
+            </div>
+            <div>
+              <label className="text-[9px] font-bold uppercase tracking-widest block mb-2" style={{color:'var(--ink-faint)'}}>
+                Expected Guests
+              </label>
+              <input value={settings.guestCount||''}
+                onChange={e=>onUpdateSettings({guestCount:Number(e.target.value)||0})}
+                placeholder="0" type="number" min="0"
+                className="w-full px-5 py-4 rounded-2xl text-sm font-black outline-none border text-center"
+                style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[9px] font-bold uppercase tracking-widest block mb-2" style={{color:'var(--ink-faint)'}}>
+              Queue Warning Threshold
+            </label>
+            <input value={settings.warnAt||DEFAULTS.QUEUE_WARN_COUNT}
+              onChange={e=>onUpdateSettings({warnAt:Number(e.target.value)||6})}
+              type="number" min="2" max="20"
+              className="w-full px-5 py-4 rounded-2xl text-sm font-black outline-none border text-center"
+              style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}} />
+          </div>
+          <label className="flex items-center justify-between cursor-pointer py-2">
+            <span className="text-sm font-bold" style={{color:'var(--ink)'}}>Dark Mode (Barista)</span>
+            <span onClick={()=>onUpdateSettings({darkMode:!settings.darkMode})}
+              className={`relative inline-block w-12 h-6 rounded-full transition-all cursor-pointer
+                ${settings.darkMode?'bg-slate-900':'bg-slate-200'}`}>
+              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all
+                ${settings.darkMode?'left-7':'left-1'}`} />
+            </span>
+          </label>
+        </div>
+      </div>
+
+      {/* ── Menu ─────────────────────────────────── */}
+      <div className={card} style={cardStyle}>
+        <div className="flex justify-between items-center mb-5">
+          <h3 className="display text-2xl dt" style={{color:'var(--ink)'}}>MENU</h3>
+          <button onClick={handleAddDrink}
+            className="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full">
+            + Drink
+          </button>
+        </div>
+        <div className="space-y-3">
+          {menu.map((d,i)=>(
+            <div key={i} className="flex gap-2 items-center p-3 rounded-2xl" style={{background:'var(--surface-2)'}}>
+              <input ref={i===menu.length-1?lastMenuRef:null}
+                placeholder="Drink name" value={d.name}
+                onChange={e=>onUpdateDrink(i,'name',e.target.value)}
+                className="flex-1 bg-white px-3 py-2.5 rounded-xl text-xs font-bold uppercase outline-none border"
+                style={{borderColor:'var(--border)',color:'var(--ink)'}} />
+              <div className="flex items-center bg-white px-2 rounded-xl border" style={{borderColor:'var(--border)'}}>
+                <span className="text-xs font-bold" style={{color:'var(--ink-faint)'}}>$</span>
+                <input type="number" min="0" step="0.5" value={d.price}
+                  onChange={e=>onUpdateDrink(i,'price',e.target.value)}
+                  className="w-14 px-2 py-2.5 bg-transparent text-xs font-black outline-none"
+                  style={{color:'var(--ink)'}} />
+              </div>
+              <button onClick={()=>onToggleDrinkSoldOut(i)}
+                className={`px-3 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all
+                  ${d.soldOut?'bg-red-500 text-white':'bg-slate-200 text-slate-500'}`}>
+                {d.soldOut?'OUT':'IN'}
+              </button>
+              <button onClick={()=>onDeleteDrink(i)}
+                className="p-2.5 rounded-xl bg-red-50 text-red-400 hover:bg-red-500 hover:text-white transition-all text-sm">
+                ✕
+              </button>
+            </div>
+          ))}
+          {menu.length===0 && (
+            <p className="text-center py-4 text-[10px] font-bold uppercase tracking-widest" style={{color:'var(--ink-faint)'}}>
+              No drinks — add one above
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Milks ────────────────────────────────── */}
+      <div className={card} style={cardStyle}>
+        <div className="flex justify-between items-center mb-5">
+          <h3 className="display text-2xl dt" style={{color:'var(--ink)'}}>MILK OPTIONS</h3>
+          <button onClick={handleAddMilk}
+            className="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full">
+            + Milk
+          </button>
+        </div>
+        <div className="space-y-3">
+          {milks.map((m,i)=>(
+            <div key={i} className="flex gap-2 items-center p-3 rounded-2xl" style={{background:'var(--surface-2)'}}>
+              <input ref={i===milks.length-1?lastMilkRef:null}
+                placeholder="Milk name" value={m.name}
+                onChange={e=>onUpdateMilk(i,'name',e.target.value)}
+                className="flex-1 bg-white px-3 py-2.5 rounded-xl text-xs font-bold uppercase outline-none border"
+                style={{borderColor:'var(--border)',color:'var(--ink)'}} />
+              <button onClick={()=>onToggleMilkSoldOut(i)}
+                className={`px-3 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all
+                  ${m.soldOut?'bg-red-500 text-white':'bg-slate-200 text-slate-500'}`}>
+                {m.soldOut?'OUT':'IN'}
+              </button>
+              <button onClick={()=>onDeleteMilk(i)}
+                className="p-2.5 rounded-xl bg-red-50 text-red-400 hover:bg-red-500 hover:text-white transition-all text-sm">
+                ✕
+              </button>
+            </div>
+          ))}
+          {milks.length===0 && (
+            <p className="text-center py-4 text-[10px] font-bold uppercase tracking-widest" style={{color:'var(--ink-faint)'}}>
+              No milks — add one above
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Kiosk exit hint */}
+      <div className="rounded-2xl px-6 py-4 text-center" style={{background:'var(--surface-2)'}}>
+        <p className="text-[9px] font-bold uppercase tracking-widest" style={{color:'var(--ink-faint)'}}>
+          💡 Enter your PIN on the top-right corner tap zone to exit kiosk mode
+        </p>
+      </div>
+
+      <button onClick={onLaunchKiosk}
+        className="w-full bg-slate-900 text-white py-8 rounded-[2.5rem] display text-3xl shadow-lift transition-transform active:scale-98">
+        LAUNCH KIOSK →
+      </button>
+    </div>
+  );
+};
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION 6 — KIOSK UI VIEWS
+   All customer-facing screens. Safe to restyle.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Attract / idle screen ───────────────────────── */
+const AttractScreen = ({ eventName, onTap }) => (
+  <div className="attract-bg grain fixed inset-0 z-[300] flex flex-col items-center justify-center cursor-pointer"
+       onClick={onTap}>
+    <div className="attract-cup text-9xl mb-8 select-none">☕</div>
+    <h1 className="display text-7xl md:text-9xl text-white mb-4" style={{letterSpacing:'0.05em'}}>
+      {eventName || DEFAULTS.APP_NAME}
+    </h1>
+    <p className="text-white/40 font-bold uppercase tracking-[0.3em] text-sm mb-16">
+      TAP ANYWHERE TO ORDER
+    </p>
+    <div className="flex gap-2 items-center">
+      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+      <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Ready to serve</span>
+    </div>
+  </div>
+);
+
+/* ── Kiosk menu screen ────────────────────────────── */
+const KioskMenuView = ({ menu, customerName, queueCount, settings, onNameChange, onSelectDrink, onExitTap }) => {
+  const warn    = settings.warnAt || DEFAULTS.QUEUE_WARN_COUNT;
+  const isBusy  = queueCount >= warn;
+
+  return (
+    <div className="animate-in pt-8 pb-28 text-center min-h-screen" style={{background:'#f8f7f4'}}>
+      <div id="exit-zone" onClick={onExitTap}
+           style={{position:'fixed',top:0,right:0,width:120,height:120,zIndex:10000,cursor:'pointer'}} />
+
+      <h1 className="display text-6xl md:text-8xl mb-1" style={{color:'var(--ink)',letterSpacing:'0.04em'}}>
+        {settings.eventName || DEFAULTS.APP_NAME}
+      </h1>
+      <p className="font-bold uppercase tracking-[0.2em] text-sm mb-8" style={{color:'var(--ink-faint)'}}>
+        COFFEE BAR
+      </p>
+
+      {/* Busy warning */}
+      {isBusy && (
+        <div className="mx-4 mb-6 queue-warning text-white px-6 py-3 rounded-2xl font-bold text-sm animate-in">
+          It's busy right now — allow about {Math.ceil(queueCount * 3)} minutes for your order
+        </div>
+      )}
+
+      {/* Name input */}
+      <div className="max-w-xl mx-auto px-4 mb-8">
+        <input type="text"
+          placeholder="WHAT'S YOUR NAME?"
+          className="w-full bg-white px-6 py-5 rounded-[2rem] text-2xl font-black uppercase text-center outline-none name-pulse shadow-card"
+          style={{color:'var(--ink)'}}
+          value={customerName}
+          onChange={e=>onNameChange(e.target.value)}
+          maxLength={24} />
+      </div>
+
+      {/* Drink grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto px-4">
+        {menu.map(drink=>(
+          <div key={drink.name}
+               className={`bg-white rounded-[2.5rem] shadow-card border p-6 flex flex-col justify-between transition-all
+                 ${drink.soldOut?'opacity-50':''}`}
+               style={{borderColor:'var(--border)'}}>
+            <div className="flex justify-between items-start mb-5">
+              <h3 className="display text-3xl text-left leading-tight" style={{color:'var(--ink)'}}>
+                {drink.name}
+              </h3>
+              <div className="text-right ml-3 flex-shrink-0">
+                <span className="text-sm font-bold px-3 py-1 rounded-full"
+                      style={{background:'var(--surface-2)',color:'var(--ink)'}}>
+                  ${Number(drink.price).toFixed(2)}
+                </span>
+                {drink.soldOut && (
+                  <p className="text-[8px] font-black text-red-400 uppercase tracking-widest mt-1">SOLD OUT</p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button disabled={drink.soldOut}
+                onClick={()=>onSelectDrink(drink,'HOT')}
+                className="flex-1 py-6 rounded-[1.5rem] font-black text-xl text-white bg-red-500
+                           disabled:bg-slate-200 disabled:text-slate-400 active:scale-95 transition-all shadow-md">
+                HOT
+              </button>
+              <button disabled={drink.soldOut}
+                onClick={()=>onSelectDrink(drink,'ICED')}
+                className="flex-1 py-6 rounded-[1.5rem] font-black text-xl text-white bg-blue-500
+                           disabled:bg-slate-200 disabled:text-slate-400 active:scale-95 transition-all shadow-md">
+                ICED
+              </button>
+            </div>
+          </div>
+        ))}
+        {menu.length===0 && (
+          <div className="col-span-2 py-24 display text-4xl" style={{color:'var(--ink-faint)'}}>
+            NO DRINKS AVAILABLE
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ── Milk selection modal ─────────────────────────── */
+const MilkSelectView = ({
+  pendingOrder, milks,
+  selectedMilk, specialRequest,
+  onSelectMilk, onSpecialRequest, onConfirm, onCancel,
+}) => {
+  const available = milks.filter(m=>!m.soldOut);
+  const chips     = DEFAULTS.QUICK_REQUESTS;
+
+  const toggleChip = (chip) => {
+    const current = specialRequest ? specialRequest.split(', ').filter(Boolean) : [];
+    const exists  = current.includes(chip);
+    const next    = exists ? current.filter(c=>c!==chip) : [...current, chip];
+    onSpecialRequest(next.join(', '));
+  };
+  const activeChips = specialRequest ? specialRequest.split(', ').filter(Boolean) : [];
+
+  return (
+    <div className="fixed inset-0 bg-white z-[100] overflow-y-auto no-scrollbar"
+         style={{background:'var(--bg)'}}>
+      <div className="max-w-xl mx-auto px-4 py-10 text-center">
+
+        <span className={`inline-block text-sm font-black px-4 py-2 rounded-full mb-4
+          ${pendingOrder.temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>
+          {pendingOrder.temp}
+        </span>
+
+        <h2 className="display text-6xl md:text-8xl mb-10 leading-none" style={{color:'var(--ink)'}}>
+          {pendingOrder.name}
+        </h2>
+
+        {/* Milk selection */}
+        <div className="mb-8">
+          <p className="font-black uppercase text-base underline decoration-2 underline-offset-8 mb-5"
+             style={{color:'var(--ink)'}}>SELECT YOUR MILK</p>
+          <div className="space-y-3">
+            {available.map(m=>(
+              <button key={m.name} onClick={()=>onSelectMilk(m.name)}
+                className={`w-full py-6 rounded-[2rem] display text-3xl transition-all border-4
+                  ${selectedMilk===m.name
+                    ?'bg-slate-900 text-white border-slate-900 scale-[1.02]'
+                    :'bg-white text-slate-900 border-slate-100 hover:border-slate-300'}`}>
+                {m.name}
+              </button>
+            ))}
+            {available.length===0 && (
+              <p className="py-8 font-bold uppercase text-sm" style={{color:'var(--ink-faint)'}}>No milks available</p>
+            )}
+          </div>
+        </div>
+
+        {/* Special requests — chips + text */}
+        {selectedMilk && (
+          <div className="space-y-5 animate-in">
+            <p className="font-black uppercase text-base underline decoration-2 underline-offset-8"
+               style={{color:'var(--ink)'}}>SPECIAL REQUESTS</p>
+
+            {/* Quick chips */}
+            <div className="flex flex-wrap gap-2 justify-center">
+              {chips.map(c=>(
+                <button key={c} onClick={()=>toggleChip(c)}
+                  className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all border-2
+                    ${activeChips.includes(c)
+                      ?'bg-slate-900 text-white border-slate-900'
+                      :'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+
+            {/* Free-text */}
+            <input type="text"
+              placeholder="Anything else? (optional)"
+              value={specialRequest}
+              onChange={e=>onSpecialRequest(e.target.value)}
+              className="w-full bg-slate-50 px-6 py-5 rounded-[2rem] text-base font-medium border outline-none text-center"
+              style={{borderColor:'var(--border)',color:'var(--ink)'}} />
+
+            {/* Total + confirm */}
+            <div className="pt-4">
+              <p className="display text-5xl mb-6" style={{color:'var(--ink)'}}>
+                TOTAL: ${Number(pendingOrder.price).toFixed(2)}
+              </p>
+              <button onClick={onConfirm}
+                className="w-full btn-confirm text-white py-8 rounded-[2.5rem] display text-4xl shadow-lift">
+                CONFIRM ORDER
+              </button>
+            </div>
+          </div>
+        )}
+
+        <button onClick={onCancel}
+          className="mt-10 font-bold uppercase text-sm transition-all"
+          style={{color:'var(--ink-faint)'}}>
+          ← Back to menu
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ── Success screen ───────────────────────────────── */
+const SuccessScreen = ({ orderNumber }) => (
+  <div className="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center animate-pop text-center px-6"
+       style={{background:'var(--bg)'}}>
+    <div className="w-28 h-28 bg-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-lift">
+      <span className="text-white text-5xl font-black">✓</span>
+    </div>
+    {orderNumber && (
+      <p className="font-bold uppercase tracking-widest text-sm mb-2" style={{color:'var(--ink-faint)'}}>
+        Order #{orderNumber}
+      </p>
+    )}
+    <h1 className="display text-6xl md:text-8xl mb-4" style={{color:'var(--ink)'}}>ORDER PLACED</h1>
+    <p className="font-bold uppercase tracking-[0.2em] text-sm" style={{color:'var(--ink-mid)'}}>
+      Your coffee will be ready soon!
+    </p>
+  </div>
+);
+
+/* ── PIN pad (to exit kiosk) ──────────────────────── */
+const PinPad = ({ correctPin, onSuccess, onCancel }) => {
+  const [entry, setEntry] = useState('');
+  const [shake, setShake] = useState(false);
+
+  const press = (d) => {
+    const next = (entry + d).slice(0, 4);
+    setEntry(next);
+    if (next.length === 4) {
+      if (next === String(correctPin || DEFAULTS.DEFAULT_PIN)) {
+        onSuccess();
+      } else {
+        setShake(true);
+        setTimeout(() => { setEntry(''); setShake(false); }, 600);
+      }
+    }
+  };
+
+  const digits = [1,2,3,4,5,6,7,8,9,'',0,'⌫'];
+
+  return (
+    <div className="fixed inset-0 z-[400] flex items-center justify-center"
+         style={{background:'rgba(0,0,0,0.7)',backdropFilter:'blur(12px)'}}>
+      <div className="bg-white rounded-[3rem] p-10 max-w-xs w-full text-center shadow-lift animate-pop"
+           style={shake?{animation:'shake 0.4s'}:{}}>
+        <h2 className="display text-3xl mb-6" style={{color:'var(--ink)'}}>ENTER PIN</h2>
+
+        {/* Dots */}
+        <div className="flex justify-center gap-4 mb-8">
+          {[0,1,2,3].map(i=>(
+            <div key={i}
+              className={`w-4 h-4 rounded-full border-2 transition-all
+                ${i < entry.length ? 'pin-dot-filled border-slate-900' : 'border-slate-300'}`} />
+          ))}
+        </div>
+
+        {/* Grid */}
+        <div className="grid grid-cols-3 gap-3">
+          {digits.map((d, i) => (
+            <button key={i}
+              onClick={() => {
+                if (d === '⌫') setEntry(e => e.slice(0,-1));
+                else if (d !== '') press(String(d));
+              }}
+              className={`py-5 rounded-2xl font-black text-2xl transition-all
+                ${d===''?'pointer-events-none':'hover:scale-105 active:scale-95'}
+                ${d==='⌫'?'bg-red-50 text-red-400':'bg-slate-50 text-slate-900'}`}>
+              {d}
+            </button>
+          ))}
+        </div>
+
+        <button onClick={onCancel}
+          className="mt-6 text-[10px] font-bold uppercase tracking-widest"
+          style={{color:'var(--ink-faint)'}}>
+          Cancel
+        </button>
+      </div>
+
+      <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}`}</style>
+    </div>
+  );
+};
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION 7 — MODAL DIALOGS (barista side)
+   Confirmation dialogs. Safe to restyle. No logic inside.
+   ═══════════════════════════════════════════════════════════════════ */
+
+const ShiftEndModal = ({ stats, onConfirm, onCancel }) => (
+  <Modal onClose={onCancel}>
+    <h2 className="display text-4xl dt mb-2" style={{color:'var(--ink)'}}>END SHIFT?</h2>
+    <div className="py-5 my-5 border-t border-b space-y-2" style={{borderColor:'var(--border)'}}>
+      <p className="text-sm font-bold" style={{color:'var(--ink-mid)'}}>
+        🍵 {stats.count} drinks served
+      </p>
+      <p className="text-sm font-bold" style={{color:'var(--ink-mid)'}}>
+        💵 ${stats.revenue.toFixed(2)} revenue
+      </p>
+      <p className="text-sm font-bold" style={{color:'var(--ink-mid)'}}>
+        ⏱ {stats.avgWait}m avg wait
+      </p>
+    </div>
+    <div className="flex flex-col gap-3">
+      <button onClick={onConfirm}
+        className="bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-sm hover:bg-red-600 transition-all">
+        Confirm End Shift
+      </button>
+      <button onClick={onCancel}
+        className="py-4 rounded-2xl font-black uppercase text-sm transition-all"
+        style={{background:'var(--surface-2)',color:'var(--ink-mid)'}}>
+        Cancel
+      </button>
+    </div>
+  </Modal>
+);
+
+const ClearHistoryModal = ({ onConfirm, onCancel }) => (
+  <Modal onClose={onCancel}>
+    <h2 className="display text-4xl dt mb-2" style={{color:'var(--ink)'}}>CLEAR HISTORY?</h2>
+    <p className="text-sm font-medium mb-6" style={{color:'var(--ink-mid)'}}>This cannot be undone.</p>
+    <div className="flex flex-col gap-3">
+      <button onClick={onConfirm}
+        className="bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-sm">
+        Yes, Clear All
+      </button>
+      <button onClick={onCancel}
+        className="py-4 rounded-2xl font-black uppercase text-sm"
+        style={{background:'var(--surface-2)',color:'var(--ink-mid)'}}>
+        Cancel
+      </button>
+    </div>
+  </Modal>
+);
+
+const DeleteDrinkModal = ({ name, onConfirm, onCancel }) => (
+  <Modal onClose={onCancel}>
+    <h2 className="display text-3xl dt mb-2" style={{color:'var(--ink)'}}>DELETE DRINK?</h2>
+    <p className="text-base font-bold italic mb-6" style={{color:'var(--ink-mid)'}}>{name||'Unnamed'}</p>
+    <div className="flex flex-col gap-3">
+      <button onClick={onConfirm} className="bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-sm">Delete</button>
+      <button onClick={onCancel} className="py-4 rounded-2xl font-black uppercase text-sm"
+        style={{background:'var(--surface-2)',color:'var(--ink-mid)'}}>Cancel</button>
+    </div>
+  </Modal>
+);
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION 8 — UNDO TOAST
+   Floats at bottom of screen for UNDO_MS after an order is completed.
+   ═══════════════════════════════════════════════════════════════════ */
+const UndoToast = ({ order, onUndo, onDismiss }) => (
+  <div className="fixed bottom-6 left-1/2 z-[700] animate-in"
+       style={{transform:'translateX(-50%)',minWidth:280}}>
+    <div className="bg-slate-900 text-white rounded-2xl px-5 py-4 shadow-lift flex items-center gap-4">
+      <div className="flex-1">
+        <p className="text-xs font-bold uppercase tracking-widest opacity-60">Order complete</p>
+        <p className="text-sm font-bold">{order.customer} — #{order.orderNumber}</p>
+      </div>
+      <button onClick={onUndo}
+        className="bg-white text-slate-900 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all">
+        UNDO
+      </button>
+    </div>
+    {/* Shrinking bar */}
+    <div className="h-1 bg-white/20 rounded-full mt-1.5 overflow-hidden">
+      <div className="h-full bg-white/60 rounded-full undo-bar" />
+    </div>
+  </div>
+);
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION 9 — ROOT APP COMPONENT
+   Wires data hook ↔ UI components.
+   No styling here. Only connections.
+   ═══════════════════════════════════════════════════════════════════ */
+const App = () => {
+  const data = useAppData();
+
+  /* ── Barista local state ──────────────────── */
+  const [baristaView,    setBaristaView]    = useState('queue');
+  const [showShiftModal, setShowShiftModal] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [deleteDrinkIdx, setDeleteDrinkIdx] = useState(null);
+  const [undoOrder,      setUndoOrder]      = useState(null);
+  const undoTimerRef = useRef(null);
+
+  /* ── Kiosk local state ────────────────────── */
+  const [pendingOrder,      setPendingOrder]      = useState(null);
+  const [selectedMilk,      setSelectedMilk]      = useState(null);
+  const [specialRequest,    setSpecialRequest]     = useState('');
+  const [customerName,      setCustomerName]       = useState('');
+  const [successOrderNum,   setSuccessOrderNum]    = useState(null);
+  const [showAttract,       setShowAttract]        = useState(false);
+  const [showPinPad,        setShowPinPad]         = useState(false);
+
+  const idleTimerRef = useRef(null);
+  const exitTapRef   = useRef({ count:0, last:0 });
+  const prevOrderLen = useRef(0);
+
+  /* ── New order chime ──────────────────────── */
+  useEffect(() => {
+    if (data.appMode === 'barista' && data.orders.length > prevOrderLen.current) {
+      data.playChime();
+    }
+    prevOrderLen.current = data.orders.length;
+  }, [data.orders.length, data.appMode]);
+
+  /* ── Idle attract screen ──────────────────── */
+  const resetIdle = useCallback(() => {
+    clearTimeout(idleTimerRef.current);
+    setShowAttract(false);
+    if (data.appMode === 'kiosk') {
+      idleTimerRef.current = setTimeout(() => setShowAttract(true), DEFAULTS.IDLE_TIMEOUT_MS);
+    }
+  }, [data.appMode]);
+
+  useEffect(() => {
+    if (data.appMode !== 'kiosk') { clearTimeout(idleTimerRef.current); return; }
+    resetIdle();
+    const events = ['touchstart','mousemove','keydown','click'];
+    events.forEach(e => window.addEventListener(e, resetIdle, { passive:true }));
+    return () => {
+      clearTimeout(idleTimerRef.current);
+      events.forEach(e => window.removeEventListener(e, resetIdle));
+    };
+  }, [data.appMode, resetIdle]);
+
+  /* ── Kiosk handlers ───────────────────────── */
+  const handleSelectDrink = (drink, temp) => {
+    setPendingOrder({...drink, temp});
+    setSelectedMilk(null);
+    setSpecialRequest('');
+  };
+
+  const handleConfirmOrder = async () => {
+    const num = await data.placeOrder({
+      customer: customerName.trim() || 'Guest',
+      flavor:   pendingOrder.name,
+      price:    pendingOrder.price || 0,
+      temp:     pendingOrder.temp,
+      milk:     selectedMilk,
+      note:     specialRequest.trim(),
+    });
+    setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); setCustomerName('');
+    setSuccessOrderNum(num);
+    setTimeout(() => { setSuccessOrderNum(null); window.scrollTo({top:0}); }, DEFAULTS.SUCCESS_MS);
+  };
+
+  const handleCancelOrder = () => { setPendingOrder(null); setSelectedMilk(null); setSpecialRequest(''); };
+
+  // Triple-tap zone → show PIN pad
+  const handleExitTap = () => {
+    const now = Date.now();
+    if (now - exitTapRef.current.last > DEFAULTS.KIOSK_EXIT_MS) exitTapRef.current.count = 0;
+    exitTapRef.current.count++;
+    exitTapRef.current.last = now;
+    if (exitTapRef.current.count >= DEFAULTS.KIOSK_EXIT_TAPS) {
+      setShowPinPad(true);
+      exitTapRef.current.count = 0;
+    }
+  };
+
+  const handlePinSuccess = () => {
+    setShowPinPad(false);
+    data.switchMode('barista');
+    setBaristaView('settings');
+  };
+
+  /* ── Barista handlers ─────────────────────── */
+  const handleComplete = (order) => {
+    data.completeOrder(order);
+    clearTimeout(undoTimerRef.current);
+    setUndoOrder(order);
+    undoTimerRef.current = setTimeout(() => setUndoOrder(null), DEFAULTS.UNDO_MS);
+  };
+
+  const handleUndo = () => {
+    if (undoOrder) {
+      data.undoComplete(undoOrder);
+      setUndoOrder(null);
+      clearTimeout(undoTimerRef.current);
+    }
+  };
+
+  const handleEndShiftConfirm = () => { data.endShift(); setShowShiftModal(false); };
+  const handleClearHistoryConfirm = () => { data.clearHistory(); setShowClearModal(false); };
+  const handleDeleteDrinkConfirm = () => {
+    if (deleteDrinkIdx !== null) data.deleteMenuItem(deleteDrinkIdx);
+    setDeleteDrinkIdx(null);
+  };
+
+  // Barista quick-add places order exactly like kiosk
+  const handleQuickAdd = (orderData) => data.placeOrder(orderData);
+
+  /* ── Render ───────────────────────────────── */
+  return (
+    <Fragment>
+
+      {/* ════════════════════════════════════════
+          BARISTA MODE
+          ════════════════════════════════════════ */}
+      {data.appMode === 'barista' && (
+        <div className="max-w-4xl mx-auto p-4 md:p-6 min-h-screen">
+          <BaristaNav
+            view={baristaView}
+            setView={setBaristaView}
+            queueCount={data.orders.length}
+            online={data.online}
+            darkMode={data.settings.darkMode}
+          />
+
+          {baristaView === 'queue' && (
+            <QueueView
+              orders={data.orders}
+              settings={data.settings}
+              onReady={data.markReady}
+              onComplete={handleComplete}
+              onNote={data.addBaristaNote}
+            />
+          )}
+          {baristaView === 'history' && (
+            <HistoryView
+              history={data.history}
+              onClear={() => setShowClearModal(true)}
+            />
+          )}
+          {baristaView === 'stats' && (
+            <StatsView
+              shift={data.shift}
+              shiftStats={data.shiftStats}
+              settings={data.settings}
+              onStartShift={data.startShift}
+              onEndShiftRequest={() => setShowShiftModal(true)}
+              exportCSV={data.exportCSV}
+            />
+          )}
+          {baristaView === 'settings' && (
+            <div className="space-y-5">
+              <QuickAddView
+                menu={data.menu}
+                milks={data.milks}
+                onPlace={handleQuickAdd}
+              />
+              <SettingsView
+                menu={data.menu}
+                milks={data.milks}
+                settings={data.settings}
+                onAddDrink={data.addMenuItem}
+                onUpdateDrink={data.updateMenuItem}
+                onDeleteDrink={i => setDeleteDrinkIdx(i)}
+                onToggleDrinkSoldOut={data.toggleDrinkSoldOut}
+                onAddMilk={data.addMilkItem}
+                onUpdateMilk={data.updateMilkItem}
+                onDeleteMilk={data.deleteMilkItem}
+                onToggleMilkSoldOut={data.toggleMilkSoldOut}
+                onUpdateSettings={data.updateSettings}
+                onLaunchKiosk={() => data.switchMode('kiosk')}
+              />
+            </div>
+          )}
+
+          {/* Barista modals */}
+          {showShiftModal && (
+            <ShiftEndModal
+              stats={data.shiftStats}
+              onConfirm={handleEndShiftConfirm}
+              onCancel={() => setShowShiftModal(false)}
+            />
+          )}
+          {showClearModal && (
+            <ClearHistoryModal
+              onConfirm={handleClearHistoryConfirm}
+              onCancel={() => setShowClearModal(false)}
+            />
+          )}
+          {deleteDrinkIdx !== null && (
+            <DeleteDrinkModal
+              name={data.menu[deleteDrinkIdx]?.name}
+              onConfirm={handleDeleteDrinkConfirm}
+              onCancel={() => setDeleteDrinkIdx(null)}
+            />
+          )}
+
+          {/* Undo toast */}
+          {undoOrder && (
+            <UndoToast
+              order={undoOrder}
+              onUndo={handleUndo}
+              onDismiss={() => setUndoOrder(null)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════
+          KIOSK MODE
+          ════════════════════════════════════════ */}
+      {data.appMode === 'kiosk' && (
+        <Fragment>
+          {/* Attract / idle screen */}
+          {showAttract && !pendingOrder && !successOrderNum && (
+            <AttractScreen
+              eventName={data.settings.eventName}
+              onTap={() => { setShowAttract(false); resetIdle(); }}
+            />
+          )}
+
+          {/* Main menu */}
+          {!pendingOrder && (
+            <KioskMenuView
+              menu={data.menu}
+              customerName={customerName}
+              queueCount={data.orders.length}
+              settings={data.settings}
+              onNameChange={setCustomerName}
+              onSelectDrink={handleSelectDrink}
+              onExitTap={handleExitTap}
+            />
+          )}
+
+          {/* Milk + confirm */}
+          {pendingOrder && (
+            <MilkSelectView
+              pendingOrder={pendingOrder}
+              milks={data.milks}
+              selectedMilk={selectedMilk}
+              specialRequest={specialRequest}
+              onSelectMilk={setSelectedMilk}
+              onSpecialRequest={setSpecialRequest}
+              onConfirm={handleConfirmOrder}
+              onCancel={handleCancelOrder}
+            />
+          )}
+
+          {/* Success */}
+          {successOrderNum !== null && <SuccessScreen orderNumber={successOrderNum} />}
+
+          {/* PIN pad */}
+          {showPinPad && (
+            <PinPad
+              correctPin={data.settings.pin || DEFAULTS.DEFAULT_PIN}
+              onSuccess={handlePinSuccess}
+              onCancel={() => setShowPinPad(false)}
+            />
+          )}
+        </Fragment>
+      )}
+
+    </Fragment>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
 </body>
 </html>
