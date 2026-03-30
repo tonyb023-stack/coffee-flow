@@ -128,14 +128,13 @@
     }
 
     /* ── Queue card states ───────────────────────────── */
-    /* Left border always reflects drink temp (hot=red, iced=blue).
-       Priority states add a coloured box-shadow ring around the whole card
-       without touching or overriding the left border colour. */
-    .card-hot   { border-left-color: #e84040; }
-    .card-iced  { border-left-color: #3b82f6; }
-    .card-warn  { box-shadow: 0 0 0 2px #f59e0b, 0 2px 12px rgba(0,0,0,.06), 0 1px 4px rgba(0,0,0,.04); }
-    .card-late  { box-shadow: 0 0 0 2px #e84040, 0 2px 12px rgba(0,0,0,.06), 0 1px 4px rgba(0,0,0,.04); }
-    .card-ready { box-shadow: 0 0 0 2px #22c55e, 0 2px 12px rgba(0,0,0,.06), 0 1px 4px rgba(0,0,0,.04); }
+    /* The left tab colour ALWAYS comes from card-hot or card-iced.
+       warn/late/ready only add a box-shadow ring — they never touch border-color. */
+    .card-hot  { border-left-color: #e84040 !important; }
+    .card-iced { border-left-color: #3b82f6 !important; }
+    .card-warn  { box-shadow: 0 0 0 2px #f59e0b, 0 2px 12px rgba(0,0,0,.06); }
+    .card-late  { box-shadow: 0 0 0 2px #e84040, 0 2px 12px rgba(0,0,0,.06); }
+    .card-ready { box-shadow: 0 0 0 2px #22c55e, 0 2px 12px rgba(0,0,0,.06); }
 
     /* ── Kiosk pause overlay ─────────────────────────── */
     .pause-bg {
@@ -580,8 +579,8 @@ const Modal = ({ children, onClose }) => (
 );
 
 const Badge = ({ count }) => count > 0 ? (
-  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-black
-                   min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center z-10">
+  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] font-black
+                   min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center z-20 shadow-sm">
     {count > 9 ? '9+' : count}
   </span>
 ) : null;
@@ -643,13 +642,13 @@ const QueueCard = ({ order, onReady, onComplete, onNote, onEdit }) => {
   const elapsed    = Math.round((Date.now() - order.startTime) / 60000);
   const isLate     = elapsed >= DEFAULTS.ORDER_LATE_MINS;
   const isWarn     = elapsed >= DEFAULTS.ORDER_WARN_MINS && !isLate;
-  const cardClass  = order.ready ? 'card-ready' : isLate ? 'card-late' : isWarn ? 'card-warn'
-                   : order.temp === 'HOT' ? 'card-hot' : 'card-iced';
+  const tempClass  = order.temp === 'HOT' ? 'card-hot' : 'card-iced';
+  const stateClass = order.ready ? 'card-ready' : isLate ? 'card-late' : isWarn ? 'card-warn' : '';
 
   const saveNote = () => { onNote(order._key, noteVal); setShowNote(false); };
 
   return (
-    <div className={`rounded-[2rem] border border-l-[10px] shadow-soft p-5 transition-all ${cardClass}`}
+    <div className={`rounded-[2rem] border border-l-[10px] shadow-soft p-5 transition-all ${tempClass} ${stateClass}`}
          style={S.surf}>
 
       {/* Header row */}
@@ -1952,7 +1951,7 @@ const App = () => {
           BARISTA MODE
           ═══════════════════════════════════════ */}
       {data.appMode === 'barista' && (
-        <div className="max-w-4xl mx-auto p-4 md:p-6 min-h-screen">
+        <div className="max-w-4xl mx-auto px-4 pt-6 pb-4 md:px-6 md:pt-8 min-h-screen">
           <BaristaNav
             view={baristaView}
             setView={setBaristaView}
