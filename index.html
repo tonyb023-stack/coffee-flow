@@ -128,15 +128,14 @@
     }
 
     /* ── Queue card states ───────────────────────────── */
-    .card-default { border-left-color: var(--ink-faint); }
-    .card-hot     { border-left-color: #e84040; }
-    .card-iced    { border-left-color: #3b82f6; }
-    .card-warn    { border-left-color: #f59e0b !important; outline: 2px solid #f59e0b; outline-offset: -1px; }
-    .card-late    { border-left-color: #e84040 !important; outline: 2px solid #e84040; outline-offset: -1px; }
-    .card-ready   { border-left-color: #22c55e !important; outline: 2px solid #22c55e; outline-offset: -1px; }
-    body.dark .card-warn  { }
-    body.dark .card-late  { }
-    body.dark .card-ready { }
+    /* Left border always reflects drink temp (hot=red, iced=blue).
+       Priority states add a coloured box-shadow ring around the whole card
+       without touching or overriding the left border colour. */
+    .card-hot   { border-left-color: #e84040; }
+    .card-iced  { border-left-color: #3b82f6; }
+    .card-warn  { box-shadow: 0 0 0 2px #f59e0b, 0 2px 12px rgba(0,0,0,.06), 0 1px 4px rgba(0,0,0,.04); }
+    .card-late  { box-shadow: 0 0 0 2px #e84040, 0 2px 12px rgba(0,0,0,.06), 0 1px 4px rgba(0,0,0,.04); }
+    .card-ready { box-shadow: 0 0 0 2px #22c55e, 0 2px 12px rgba(0,0,0,.06), 0 1px 4px rgba(0,0,0,.04); }
 
     /* ── Kiosk pause overlay ─────────────────────────── */
     .pause-bg {
@@ -617,12 +616,12 @@ const BaristaNav = ({ view, setView, queueCount, online }) => {
     { id:'settings', label:'Settings' },
   ];
   return (
-    <nav className="flex items-center gap-2 p-2 pt-3 rounded-2xl shadow-soft border mb-6"
+    <nav className="flex items-center gap-2 p-2 rounded-2xl shadow-soft border mb-6 mt-3 overflow-visible"
          style={S.surf}>
-      <div className="flex gap-1 flex-1 overflow-x-auto no-scroll">
+      <div className="flex gap-1 flex-1 overflow-x-auto overflow-y-visible no-scroll">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setView(t.id)}
-            className={`relative flex-shrink-0 px-3 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap
+            className={`relative overflow-visible flex-shrink-0 px-3 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap
               ${view===t.id ? 'bg-slate-900 text-white' : 'hover:bg-slate-100'}`}
             style={view===t.id ? {} : S.faint}>
             {t.label}
