@@ -131,12 +131,12 @@
     .card-default { border-left-color: var(--ink-faint); }
     .card-hot     { border-left-color: #e84040; }
     .card-iced    { border-left-color: #3b82f6; }
-    .card-warn    { border-left-color: #f59e0b !important; background: #fffbeb !important; }
-    .card-late    { border-left-color: #e84040 !important; background: #fff5f5 !important; }
-    .card-ready   { border-left-color: #22c55e !important; background: #f0fdf4 !important; }
-    body.dark .card-warn  { background: #1c1500 !important; }
-    body.dark .card-late  { background: #1c0000 !important; }
-    body.dark .card-ready { background: #052e16 !important; }
+    .card-warn    { border-left-color: #f59e0b !important; outline: 2px solid #f59e0b; outline-offset: -1px; }
+    .card-late    { border-left-color: #e84040 !important; outline: 2px solid #e84040; outline-offset: -1px; }
+    .card-ready   { border-left-color: #22c55e !important; outline: 2px solid #22c55e; outline-offset: -1px; }
+    body.dark .card-warn  { }
+    body.dark .card-late  { }
+    body.dark .card-ready { }
 
     /* ── Kiosk pause overlay ─────────────────────────── */
     .pause-bg {
@@ -592,7 +592,7 @@ const MiniBar = ({ label, value, max, color='#22c55e' }) => {
   const pct = max > 0 ? Math.round((value/max)*100) : 0;
   return (
     <div className="flex items-center gap-3 text-xs">
-      <span className="w-16 font-bold truncate text-right flex-shrink-0" style={S.mid}>{label}</span>
+      <span className="w-28 font-bold truncate text-right flex-shrink-0" style={S.mid}>{label}</span>
       <div className="flex-1 rounded-full overflow-hidden h-2" style={S.surf2}>
         <div className="h-full rounded-full stat-bar" style={{width:`${pct}%`, background:color}} />
       </div>
@@ -617,7 +617,7 @@ const BaristaNav = ({ view, setView, queueCount, online }) => {
     { id:'settings', label:'Settings' },
   ];
   return (
-    <nav className="flex items-center gap-2 p-2 rounded-2xl shadow-soft border mb-6"
+    <nav className="flex items-center gap-2 p-2 pt-3 rounded-2xl shadow-soft border mb-6"
          style={S.surf}>
       <div className="flex gap-1 flex-1 overflow-x-auto no-scroll">
         {tabs.map(t => (
@@ -800,7 +800,7 @@ const QueueView = ({ orders, settings, onReady, onComplete, onNote, onEdit }) =>
   return (
     <div className="space-y-3 animate-in">
       {orders.length >= warn && (
-        <div className="queue-warning text-white px-5 py-3 rounded-2xl font-bold text-sm text-center">
+        <div className="queue-warning text-slate-900 px-5 py-3 rounded-2xl font-bold text-sm text-center">
           ⚡ {orders.length} orders in queue — customers are being shown a wait estimate
         </div>
       )}
@@ -1435,8 +1435,10 @@ const AttractScreen = ({ eventName, tagline, onTap }) => (
 );
 
 /* ── Pause screen (shown on kiosk when paused) ─── */
-const PauseScreen = ({ message }) => (
+const PauseScreen = ({ message, onExitTap }) => (
   <div className="pause-bg fixed inset-0 z-[290] flex flex-col items-center justify-center select-none">
+    <div id="exit-zone-pause" onClick={onExitTap}
+         style={{position:'fixed',top:0,right:0,width:120,height:120,zIndex:10000}} />
     <div className="text-6xl mb-6">⏸</div>
     <h1 className="display text-6xl md:text-8xl text-white mb-4" style={{letterSpacing:'0.04em'}}>
       BE RIGHT BACK
@@ -1460,10 +1462,6 @@ const KioskMenuView = ({ menu, customerName, queueCount, settings, onNameChange,
 
       {/* Header */}
       <div className="text-center mb-8 px-4">
-        <div className="inline-block mb-2 px-5 py-1 rounded-full text-xs font-bold uppercase tracking-widest"
-             style={{background:`${accent}20`,color:accent}}>
-          {settings.tagline || DEFAULTS.TAGLINE}
-        </div>
         <h1 className="display text-7xl md:text-9xl leading-none" style={{color:'var(--ink)',letterSpacing:'0.04em'}}>
           {settings.eventName || DEFAULTS.APP_NAME}
         </h1>
@@ -2053,7 +2051,7 @@ const App = () => {
       {data.appMode === 'kiosk' && (
         <Fragment>
           {/* Pause overlay */}
-          {data.pause.active && <PauseScreen message={data.pause.message} />}
+          {data.pause.active && <PauseScreen message={data.pause.message} onExitTap={handleExitTap} />}
 
           {/* Attract screen */}
           {showAttract && !pendingOrder && !successData && !data.pause.active && (
