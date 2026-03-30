@@ -579,8 +579,8 @@ const Modal = ({ children, onClose }) => (
 );
 
 const Badge = ({ count }) => count > 0 ? (
-  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] font-black
-                   min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center z-20 shadow-sm">
+  <span className="inline-flex items-center justify-center bg-red-500 text-white text-[8px] font-black
+                   min-w-[16px] h-[16px] px-1 rounded-full ml-1.5 leading-none">
     {count > 9 ? '9+' : count}
   </span>
 ) : null;
@@ -615,12 +615,12 @@ const BaristaNav = ({ view, setView, queueCount, online }) => {
     { id:'settings', label:'Settings' },
   ];
   return (
-    <nav className="flex items-center gap-2 p-2 rounded-2xl shadow-soft border mb-6 mt-3 overflow-visible"
+    <nav className="flex items-center gap-2 p-2 rounded-2xl shadow-soft border mb-6"
          style={S.surf}>
-      <div className="flex gap-1 flex-1 overflow-x-auto overflow-y-visible no-scroll">
+      <div className="flex gap-1 flex-1 overflow-x-auto no-scroll">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setView(t.id)}
-            className={`relative overflow-visible flex-shrink-0 px-3 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap
+            className={`relative flex-shrink-0 px-3 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap inline-flex items-center
               ${view===t.id ? 'bg-slate-900 text-white' : 'hover:bg-slate-100'}`}
             style={view===t.id ? {} : S.faint}>
             {t.label}
@@ -1951,7 +1951,7 @@ const App = () => {
           BARISTA MODE
           ═══════════════════════════════════════ */}
       {data.appMode === 'barista' && (
-        <div className="max-w-4xl mx-auto px-4 pt-6 pb-4 md:px-6 md:pt-8 min-h-screen">
+        <div className="max-w-4xl mx-auto p-4 md:p-6 min-h-screen">
           <BaristaNav
             view={baristaView}
             setView={setBaristaView}
