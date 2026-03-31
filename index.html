@@ -65,7 +65,7 @@
     @keyframes checkPop   { 0%{transform:scale(0) rotate(-20deg)} 60%{transform:scale(1.2) rotate(4deg)} 100%{transform:scale(1) rotate(0)} }
     @keyframes drawCircle { from{stroke-dashoffset:283} to{stroke-dashoffset:0} }
     @keyframes drawCheck  { from{stroke-dashoffset:80}  to{stroke-dashoffset:0} }
-    @keyframes confirmPulse { 0%,100%{box-shadow:0 12px 32px -4px rgba(34,197,94,.45)} 50%{box-shadow:0 12px 52px -4px rgba(34,197,94,.72)} }
+    @keyframes confirmGlow { 0%,100%{opacity:1} 50%{opacity:.82} }
     @keyframes successItem { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 
     .animate-in    { animation: slideUp  .4s cubic-bezier(.16,1,.3,1) forwards; }
@@ -87,13 +87,11 @@
     }
     .kiosk-grain > * { position:relative; z-index:1; }
 
-    /* ── Confirm button ──────────────────────── */
     .btn-confirm {
       background: linear-gradient(135deg,#22c55e,#16a34a);
-      animation: confirmPulse 4s ease-in-out infinite;
-      transition: transform .15s;
+      transition: transform .15s, box-shadow .15s;
     }
-    .btn-confirm:active { transform:scale(.97); animation:none; }
+    .btn-confirm:active { transform:scale(.97); }
 
     /* ── Name field pulses ───────────────────── */
     .name-pulse      { border:2.5px solid #0f0f0f; animation:namePulse     3s infinite ease-in-out; }
@@ -334,8 +332,10 @@ const useAppData = () => {
     const durationMs  = shift.active ? Date.now()-shift.startTime : 0;
     const durationStr = durationMs > 0
       ? `${Math.floor(durationMs/3600000)}h ${Math.floor((durationMs%3600000)/60000)}m` : '—';
+    const durationHrs = durationMs / 3600000;
+    const perHour     = durationHrs > 0 ? (rows.length / durationHrs).toFixed(1) : '—';
     return {revenue,topDrink,count:rows.length,avgWait,busiestHour,
-            drinkCounts,hourCounts,hotCount,icedCount,durationStr};
+            drinkCounts,hourCounts,hotCount,icedCount,durationStr,perHour};
   }, [history, shift]);
 
   /* Estimated wait based on current queue length and avg from shift */
@@ -692,6 +692,22 @@ const HistoryView = ({history,onClear}) => {
     : history;
   const shown   = filtered.slice(0,page*DEFAULTS.HISTORY_PAGE);
   const hasMore = shown.length<filtered.length;
+
+  /* Group shown entries by date label */
+  const today     = new Date(); today.setHours(0,0,0,0);
+  const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
+  const dateLabel = ts => {
+    const d = new Date(ts); d.setHours(0,0,0,0);
+    if (d.getTime()===today.getTime())     return 'Today';
+    if (d.getTime()===yesterday.getTime()) return 'Yesterday';
+    return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  };
+  const grouped = shown.reduce((acc,o)=>{
+    const lbl = dateLabel(o.completedAt);
+    if (!acc.length || acc[acc.length-1].label!==lbl) acc.push({label:lbl,items:[]});
+    acc[acc.length-1].items.push(o);
+    return acc;
+  },[])
   return (
     <div className="rounded-[2.5rem] p-8 shadow-soft border animate-in" style={S.surf}>
       <div className="flex justify-between items-start mb-5">
@@ -706,23 +722,30 @@ const HistoryView = ({history,onClear}) => {
         className="w-full px-5 py-3 rounded-2xl text-sm font-medium outline-none border mb-5"
         style={S.inp}/>
       {filtered.length===0&&<p className="text-center py-10 display text-3xl" style={S.faint}>{q?'NO RESULTS':'NO HISTORY YET'}</p>}
-      <div className="space-y-2">
-        {shown.map(o=>(
-          <div key={o._key||o.orderNumber} className="flex justify-between items-start p-4 rounded-2xl border gap-3" style={S.surf2}>
-            <div className="flex-1 min-w-0">
-              <div className="flex gap-2 items-center mb-1">
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">#{o.orderNumber??'—'}</span>
-              </div>
-              <span className="display text-xl" style={S.ink}>{o.customer}</span>
-              <p className="text-xs font-medium truncate mt-0.5" style={S.mid}>
-                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full mr-1.5 inline-block align-middle ${o.temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{o.temp}</span>
-                {o.flavor} · {o.milk}{o.note&&` · "${o.note}"`}
-              </p>
-              {o.baristaNote&&<p className="text-[10px] font-medium mt-0.5" style={S.faint}>📝 {o.baristaNote}</p>}
-            </div>
-            <div className="text-right flex-shrink-0">
-              <span className="display text-xl" style={S.ink}>{o.waitTime}m</span>
-              <p className="text-[8px] font-bold uppercase tracking-widest" style={S.faint}>WAIT</p>
+      <div className="space-y-5">
+        {grouped.map(group=>(
+          <div key={group.label}>
+            <p className="text-[9px] font-black uppercase tracking-widest mb-2 px-1" style={S.faint}>{group.label}</p>
+            <div className="space-y-2">
+              {group.items.map(o=>(
+                <div key={o._key||o.orderNumber} className="flex justify-between items-start p-4 rounded-2xl border gap-3" style={S.surf2}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex gap-2 items-center mb-1">
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">#{o.orderNumber??'—'}</span>
+                    </div>
+                    <span className="display text-xl" style={S.ink}>{o.customer}</span>
+                    <p className="text-xs font-medium truncate mt-0.5" style={S.mid}>
+                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full mr-1.5 inline-block align-middle ${o.temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{o.temp}</span>
+                      {o.flavor} · {o.milk}{o.note&&` · "${o.note}"`}
+                    </p>
+                    {o.baristaNote&&<p className="text-[10px] font-medium mt-0.5" style={S.faint}>📝 {o.baristaNote}</p>}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <span className="display text-xl" style={S.ink}>{o.waitTime}m</span>
+                    <p className="text-[8px] font-bold uppercase tracking-widest" style={S.faint}>WAIT</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ))}
@@ -738,10 +761,12 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
   const hours = Object.entries(shiftStats.hourCounts||{}).map(([h,c])=>({label:`${h%12||12}${Number(h)>=12?'p':'a'}`,count:c})).sort((a,b)=>parseInt(a.label)-parseInt(b.label));
   const drinks= Object.entries(shiftStats.drinkCounts||{}).map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count).slice(0,6);
   const cells = [
-    {label:'Revenue',   val:`$${shiftStats.revenue.toFixed(2)}`},
-    {label:'Top Drink', val:shiftStats.topDrink,  italic:true},
-    {label:'Avg Wait',  val:`${shiftStats.avgWait}m`},
-    {label:'Peak Hour', val:shiftStats.busiestHour,italic:true},
+    {label:'Revenue',    val:`$${shiftStats.revenue.toFixed(2)}`},
+    {label:'Top Drink',  val:shiftStats.topDrink,   italic:true},
+    {label:'Avg Wait',   val:`${shiftStats.avgWait}m`},
+    {label:'Peak Hour',  val:shiftStats.busiestHour, italic:true},
+    {label:'Drinks/Hr',  val:shiftStats.perHour},
+    {label:'Duration',   val:shiftStats.durationStr},
   ];
   return (
     <div className="space-y-4 animate-in">
@@ -752,11 +777,9 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
             {shift.active?'● End Shift':'Start Shift'}
           </button>
           {shift.active&&(
-            <div className="mt-3 space-y-0.5">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-500">
-                Started {new Date(shift.startTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · {shiftStats.durationStr}
-              </p>
-            </div>
+            <p className="text-[9px] font-bold uppercase tracking-widest mt-3 text-emerald-500">
+              Started {new Date(shift.startTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+            </p>
           )}
         </div>
         {noData?(
@@ -1319,10 +1342,10 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
   const toggle    = chip=>{ const n=active.includes(chip)?active.filter(x=>x!==chip):[...active,chip]; onSpecialRequest(n.join(', ')); };
   const isHot     = pendingOrder.temp==='HOT';
 
-  /* subtle tint behind drink title from temp */
+  /* very subtle tint behind drink title — low opacity so it doesn't bleed */
   const tintBg = isHot
-    ? (dark?'rgba(232,64,64,.08)':'rgba(255,245,245,1)')
-    : (dark?'rgba(59,130,246,.08)':'rgba(239,246,255,1)');
+    ? (dark?'rgba(232,64,64,.07)':'rgba(232,64,64,.05)')
+    : (dark?'rgba(59,130,246,.07)':'rgba(59,130,246,.05)');
 
   return (
     <div className="kiosk-grain fixed inset-0 overflow-y-auto no-scroll" style={{background:c.bg}}>
@@ -1382,7 +1405,8 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
               <button onClick={()=>{try{navigator.vibrate&&navigator.vibrate(50);}catch(_){} onConfirm();}}
                 className="w-full btn-confirm text-white py-8 rounded-[2.5rem] display text-4xl"
                 style={{background:`linear-gradient(135deg,${settings.accentColor||'#22c55e'},${settings.accentColor||'#16a34a'})`,
-                        boxShadow:`0 12px 40px -4px ${settings.accentColor||'#22c55e'}66`}}>
+                        boxShadow:`0 12px 40px -4px ${settings.accentColor||'#22c55e'}66`,
+                        animation:'confirmGlow 3.5s ease-in-out infinite'}}>
                 CONFIRM ORDER
               </button>
             </div>
@@ -1397,7 +1421,7 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
 const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,settings}) => {
   const c = kc(settings.kioskDark);
   return (
-    <div className="kiosk-grain fixed inset-0 flex flex-col items-center justify-center text-center px-6" style={{background:c.bg}}>
+    <div className="kiosk-grain fixed inset-0 z-[500] flex flex-col items-center justify-center text-center px-6" style={{background:c.bg}}>
       <div style={{animation:'successItem .5s .0s both'}}><AnimatedCheck size={112} color="#22c55e"/></div>
       {orderNumber&&(
         <p className="font-bold uppercase tracking-widest text-sm mt-6 mb-1"
@@ -1500,10 +1524,11 @@ const App = () => {
   /* Kiosk handlers */
   const handleSelectDrink=(drink,temp)=>{ setPendingOrder({...drink,temp}); setSelectedMilk(null); setSpecialRequest(''); };
   const handleConfirmOrder=async()=>{
+    window.scrollTo({top:0,behavior:'instant'});
     const num=await data.placeOrder({customer:customerName.trim()||'Guest',flavor:pendingOrder.name,price:pendingOrder.price||0,temp:pendingOrder.temp,milk:selectedMilk,note:specialRequest.trim()});
     setSuccessData({orderNumber:num,customer:customerName.trim()||'Guest',flavor:pendingOrder.name,milk:selectedMilk,temp:pendingOrder.temp});
     setPendingOrder(null);setSelectedMilk(null);setSpecialRequest('');setCustomerName('');
-    setTimeout(()=>{setSuccessData(null);window.scrollTo({top:0});},DEFAULTS.SUCCESS_MS);
+    setTimeout(()=>setSuccessData(null),DEFAULTS.SUCCESS_MS);
   };
   const handleCancelOrder=()=>{ setPendingOrder(null);setSelectedMilk(null);setSpecialRequest(''); };
   const handleExitTap=()=>{
@@ -1587,7 +1612,7 @@ const App = () => {
           {showAttract&&!pendingOrder&&!successData&&!data.pause.active&&(
             <AttractScreen eventName={data.settings.eventName} tagline={data.settings.tagline} onTap={()=>{setShowAttract(false);resetIdle();}}/>
           )}
-          {!pendingOrder&&!data.pause.active&&(
+          {!pendingOrder&&!data.pause.active&&!successData&&(
             <KioskMenuView menu={data.menu} customerName={customerName} queueCount={data.orders.length} settings={data.settings} estWait={data.estWait} onNameChange={setCustomerName} onSelectDrink={handleSelectDrink} onExitTap={handleExitTap}/>
           )}
           {pendingOrder&&!data.pause.active&&(
