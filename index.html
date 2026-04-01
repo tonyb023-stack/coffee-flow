@@ -338,11 +338,18 @@ const useAppData = () => {
             drinkCounts,hourCounts,hotCount,icedCount,durationStr,perHour};
   }, [history, shift]);
 
-  /* Estimated wait based on current queue length and avg from shift */
+  /* Estimated wait for a new customer joining the back of the queue.
+     Uses real throughput (shift duration ÷ drinks completed) rather than
+     avgWait, which already includes queue time and would double-count it.
+     Falls back to 3 min/drink when no shift data is available. */
   const estWait = useMemo(() => {
-    const avg = Number(shiftStats.avgWait) || 3;
-    return Math.ceil(orders.length * avg);
-  }, [orders.length, shiftStats.avgWait]);
+    const durationMins = shift.active ? (Date.now() - shift.startTime) / 60000 : 0;
+    const completed    = shiftStats.count;
+    const minsPerDrink = (durationMins > 0 && completed > 0)
+      ? durationMins / completed   // real measured throughput
+      : 3;                         // sensible default before any data
+    return Math.max(1, Math.ceil(orders.length * minsPerDrink));
+  }, [orders.length, shiftStats.count, shift]);
 
   const exportCSV = useCallback(frame => {
     if (frame==='shift' && shift.startTime===0) {
@@ -1092,8 +1099,8 @@ const SettingsView = ({
                 <button onClick={()=>onMoveMenuDown(d,i)} disabled={i===menu.length-1} className="text-[10px] leading-none disabled:opacity-20 hover:opacity-60" style={S.faint}>▼</button>
               </div>
               <input placeholder="Drink name" value={d.name} onChange={e=>onUpdateDrink(d._key,{name:e.target.value})}
-                className="flex-1 bg-white px-3 py-2.5 rounded-xl text-xs font-bold uppercase outline-none border" style={{borderColor:'var(--border)',color:'var(--ink)'}}/>
-              <div className="flex items-center bg-white px-2 rounded-xl border" style={{borderColor:'var(--border)'}}>
+                className="flex-1 px-3 py-2.5 rounded-xl text-xs font-bold uppercase outline-none border" style={{background:'var(--surface)',borderColor:'var(--border)',color:'var(--ink)'}}/>
+              <div className="flex items-center px-2 rounded-xl border" style={{background:'var(--surface)',borderColor:'var(--border)'}}>
                 <span className="text-xs font-bold" style={S.faint}>$</span>
                 <input type="number" min="0" step="0.5" value={d.price} onChange={e=>onUpdateDrink(d._key,{price:e.target.value})}
                   className="w-14 px-2 py-2.5 bg-transparent text-xs font-black outline-none" style={S.ink}/>
@@ -1122,7 +1129,7 @@ const SettingsView = ({
                 <button onClick={()=>onMoveMilkDown(m,i)} disabled={i===milks.length-1} className="text-[10px] leading-none disabled:opacity-20 hover:opacity-60" style={S.faint}>▼</button>
               </div>
               <input placeholder="Milk name" value={m.name} onChange={e=>onUpdateMilk(m._key,{name:e.target.value})}
-                className="flex-1 bg-white px-3 py-2.5 rounded-xl text-xs font-bold uppercase outline-none border" style={{borderColor:'var(--border)',color:'var(--ink)'}}/>
+                className="flex-1 px-3 py-2.5 rounded-xl text-xs font-bold uppercase outline-none border" style={{background:'var(--surface)',borderColor:'var(--border)',color:'var(--ink)'}}/>
               <button onClick={()=>onToggleMilkSoldOut(m)} className={`px-3 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all ${m.soldOut?'bg-red-500 text-white':'bg-slate-200 text-slate-500'}`}>{m.soldOut?'OUT':'IN'}</button>
               <button onClick={()=>setDelMilk(m)} className="p-2.5 rounded-xl bg-red-50 text-red-400 hover:bg-red-500 hover:text-white transition-all text-sm">✕</button>
             </div>
