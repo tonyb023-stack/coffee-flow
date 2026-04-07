@@ -62,7 +62,6 @@
     @keyframes namePulseDark { 0%,100%{border-color:rgba(245,240,232,.8);box-shadow:0 0 0 0 rgba(245,240,232,.1)} 50%{border-color:rgba(245,240,232,.3);box-shadow:0 0 0 10px rgba(245,240,232,.05)} }
     @keyframes undoShrink { from{width:100%} to{width:0%} }
     @keyframes shake      { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
-    @keyframes checkPop   { 0%{transform:scale(0) rotate(-20deg)} 60%{transform:scale(1.2) rotate(4deg)} 100%{transform:scale(1) rotate(0)} }
     @keyframes drawCircle { from{stroke-dashoffset:283} to{stroke-dashoffset:0} }
     @keyframes drawCheck  { from{stroke-dashoffset:80}  to{stroke-dashoffset:0} }
     @keyframes confirmGlow { 0%,100%{opacity:1} 50%{opacity:.82} }
@@ -101,6 +100,8 @@
     .conn-online  { background:#22c55e; animation:pulseRing 2s infinite; }
     .conn-offline { background:#e84040; }
     .undo-bar { animation:undoShrink 5s linear forwards; }
+    @keyframes softPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    .badge-late { animation:softPulse 1.8s ease-in-out infinite; }
 
     /* ── Attract / Pause screens ─────────────── */
     .attract-bg {
@@ -282,7 +283,7 @@ const Db = {
     DB.ref(`orders/${order._key}`).set({...a,status:'Active',ready:false});
     DB.ref(`history/${order._key}`).remove();
   },
-  addNote:      (key,note)  => DB.ref(`history/${key}/baristaNote`).set(note),
+  addNote:      (key,note)  => DB.ref(`orders/${key}/baristaNote`).set(note),
   clearHistory: ()          => DB.ref('history').remove(),
   pruneHistory() {
     const c = Date.now()-(DEFAULTS.TTL_DAYS*86400000);
@@ -553,7 +554,7 @@ const OrderTimer = ({elapsed, warnMins, lateMins}) => {
 /* Modal — uses CSS vars → dark mode works automatically */
 const Modal = ({children,onClose}) => (
   <div className="fixed inset-0 z-[600] flex items-center justify-center p-5"
-       style={{background:'rgba(0,0,0,.62)',backdropFilter:'blur(12px)'}}
+       style={{background:'rgba(0,0,0,.65)',backdropFilter:'blur(14px)'}}
        onClick={e=>{if(e.target===e.currentTarget&&onClose)onClose();}}>
     <div className="rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-lift animate-pop border" style={S.surf}>
       {children}
@@ -661,7 +662,7 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins}) =
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">#{order.orderNumber??'—'}</span>
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">{fmtTime(order.startTime)}</span>
             {order.ready&&<span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-600">READY ✓</span>}
-            {isLate&&!order.ready&&<span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-500">LATE</span>}
+            {isLate&&!order.ready&&<span className="badge-late text-[8px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-500">LATE</span>}
           </div>
           <h3 className="display text-3xl leading-none" style={S.ink}>{order.customer}</h3>
           <p className="text-sm font-black truncate mt-0.5" style={S.ink}>
@@ -678,7 +679,7 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins}) =
         <div className="flex gap-2 mt-2 animate-in">
           <input autoFocus value={noteVal} onChange={e=>setNoteVal(e.target.value)}
             placeholder="Barista note…" className="flex-1 px-4 py-2 rounded-xl text-xs font-medium border outline-none" style={S.inp}
-            onKeyDown={e=>e.key==='Enter'&&saveNote()}/>
+            onKeyDown={e=>{if(e.key==='Enter')saveNote();if(e.key==='Escape'){setNoteVal(order.baristaNote||'');setShowNote(false);}}}/>
           <button onClick={saveNote} className="px-4 rounded-xl text-xs font-bold" style={{background:'var(--ink)',color:'var(--bg)'}}>Save</button>
           <button onClick={()=>setShowNote(false)} className="px-3 rounded-xl text-xs" style={S.faint}>✕</button>
         </div>
@@ -778,6 +779,7 @@ const QueueView = ({orders,settings,onReady,onComplete,onNote,onEdit,estWait}) =
 const HistoryView = ({history,onClear}) => {
   const [page,setPage]=useState(1);
   const [q,setQ]=useState('');
+  useEffect(()=>{ setPage(1); },[history.length]);
   const filtered = useMemo(()=> q.trim()
     ? history.filter(o=>
         o.customer?.toLowerCase().includes(q.toLowerCase())||
@@ -853,6 +855,7 @@ const HistoryView = ({history,onClear}) => {
           </div>
         ))}
       </div>
+      {(()=>{ const tot=filtered.reduce((s,o)=>s+Number(o.price||0),0); return tot>0?(<div className="flex justify-between items-center pt-4 mt-2 border-t" style={{borderColor:'var(--border)'}}><span className="text-[10px] font-bold uppercase tracking-widest" style={S.faint}>{filtered.length} orders</span><span className="font-black" style={S.ink}>{fmtPrice(tot)}</span></div>):null; })()}
       {hasMore&&<button onClick={()=>setPage(p=>p+1)} className="w-full mt-4 py-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-80" style={{...S.surf2,...S.mid}}>Load More ({filtered.length-shown.length} remaining)</button>}
     </div>
   );
@@ -883,7 +886,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
   const cells = [
     {label:'Revenue',    val:shiftStats.count>0?`$${shiftStats.revenue.toFixed(2)}`:'—'},
     {label:'Top Drink',  val:shiftStats.topDrink,   italic:true},
-    {label:'Avg Wait',   val:`${shiftStats.avgWait}m`},
+    {label:'Avg Wait',   val:shiftStats.avgWait==='—'?'—':`${shiftStats.avgWait}m`},
     {label:'Peak Hour',  val:shiftStats.busiestHour, italic:true},
     {label:'Drinks/Hr',  val:shiftStats.perHour},
     {label:'Avg Price',  val:shiftStats.count>0?`$${shiftStats.avgRevenue}`:'—'},
@@ -908,7 +911,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
           </button>
           {shift.active&&(
             <p className="text-[9px] font-bold uppercase tracking-widest mt-2.5" style={S.faint}>
-              Started {new Date(shift.startTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+              {fmtTime(shift.startTime)}
               {liveDur!=='—'&&<span className="text-emerald-500"> · {liveDur}</span>}
             </p>
           )}
@@ -988,7 +991,8 @@ const QuickAddView = ({menu,milks,onPlace}) => {
   const reset=()=>{setDrink(null);setTemp(null);setMilk(null);setNote('');setName('');};
   useEffect(()=>()=>{clearTimeout(timerRef.current);},[]);
   const confirm=async()=>{
-    const num=await onPlace({customer:name.trim()||'Walk-up',flavor:drink.name,price:drink.price||0,temp,milk,note:note.trim()});
+    const rawWU=name.trim(); const fmtWU=rawWU?rawWU.replace(/\b\w/g,c=>c.toUpperCase()):'Walk-up';
+    const num=await onPlace({customer:fmtWU,flavor:drink.name,price:drink.price||0,temp,milk,note:note.trim()});
     setOrderNum(num); setPlaced(true);
     timerRef.current=setTimeout(()=>{setPlaced(false);setOrderNum(null);reset();},DEFAULTS.QUICK_ADD_MS);
   };
@@ -1004,7 +1008,7 @@ const QuickAddView = ({menu,milks,onPlace}) => {
   return (
     <div className="rounded-[2.5rem] p-8 shadow-soft border animate-in" style={S.surf}>
       <h2 className="display text-3xl mb-5" style={S.ink}>WALK-UP ORDER</h2>
-      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Customer name (optional)" className="w-full px-5 py-3.5 rounded-2xl text-sm font-medium mb-5 outline-none border" style={S.inp}/>
+      <input value={name} onChange={e=>setName(e.target.value)} autoComplete="off" placeholder="Customer name (optional)" className="w-full px-5 py-3.5 rounded-2xl text-sm font-medium mb-5 outline-none border" style={S.inp}/>
       <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={S.faint}>Drink</p>
       <div className="grid grid-cols-2 gap-2 mb-4">
         {avail.map(d=>(
@@ -1178,7 +1182,8 @@ const SettingsView = ({
               <input type="color" value={settings.accentColor||'#22c55e'}
                 onChange={e=>onUpdateSettings({accentColor:e.target.value})}
                 className="w-12 h-10 rounded-xl border cursor-pointer" style={{borderColor:'var(--border)'}}/>
-              <span className="text-xs font-bold" style={S.mid}>{settings.accentColor||'#22c55e'}</span>
+              <div className="w-6 h-6 rounded-full border flex-shrink-0" style={{background:settings.accentColor||'#22c55e',borderColor:'var(--border)'}}/>
+              <span className="text-xs font-bold font-mono" style={S.mid}>{settings.accentColor||'#22c55e'}</span>
             </div>
           </div>
           <Toggle label="Dark Mode (Barista)"  on={!!settings.darkMode}   onToggle={()=>onUpdateSettings({darkMode:!settings.darkMode})}/>
@@ -1193,7 +1198,7 @@ const SettingsView = ({
       {/* Break Mode */}
       <div className={card} style={S.surf}>
         <h3 className="display text-2xl mb-1" style={S.ink}>BREAK MODE</h3>
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={S.faint}>Blocks new kiosk orders</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={S.faint}>Blocks new orders · customers see a pause screen</p>
         {pause.active?(
           <div className="space-y-3">
             <div className="py-3 px-4 rounded-2xl bg-amber-50 border border-amber-200 text-center"><p className="text-amber-700 font-bold text-sm">⏸ Kiosk paused — "{pause.message}"</p></div>
@@ -1314,9 +1319,9 @@ const ShiftEndModal=({stats,onConfirm,onCancel})=>(
   <Modal onClose={onCancel}>
     <h2 className="display text-4xl mb-2" style={S.ink}>END SHIFT?</h2>
     <div className="py-5 my-5 border-t border-b space-y-2" style={{borderColor:'var(--border)'}}>
-      <p className="text-sm font-bold" style={S.mid}>🍵 {stats.count} drinks served</p>
+      <p className="text-sm font-bold" style={S.mid}>🍵 {stats.count} drinks{stats.hotCount>0?` · 🔥${stats.hotCount} hot / 🧊${stats.icedCount} iced`:''}</p>
       <p className="text-sm font-bold" style={S.mid}>💵 ${stats.revenue.toFixed(2)} revenue</p>
-      <p className="text-sm font-bold" style={S.mid}>⏱ {stats.avgWait}m avg wait</p>
+      <p className="text-sm font-bold" style={S.mid}>⏱ {stats.avgWait==='—'?'—':`${stats.avgWait}m`} avg wait</p>
     </div>
     <div className="flex flex-col gap-3">
       <button onClick={onConfirm} className="bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-sm">Confirm End Shift</button>
@@ -1432,6 +1437,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
       <div className="max-w-xl mx-auto px-4 mb-10">
         <div className="relative">
           <input type="text" placeholder="WHAT'S YOUR NAME?"
+            autoComplete="off"
             className={`w-full px-6 py-5 rounded-[2rem] text-2xl font-black uppercase text-center outline-none shadow-card ${dark?'name-pulse-dark':'name-pulse'}`}
             style={{background:c.surface,color:c.ink}}
             value={customerName}
@@ -1487,7 +1493,10 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
           </div>
         ))}
         {menu.length===0&&(
-          <div className="col-span-2 py-24 display text-4xl text-center" style={{color:c.inkFaint}}>NO DRINKS AVAILABLE</div>
+          <div className="col-span-2 py-24 text-center">
+            <div style={{fontSize:'3rem',opacity:.18,marginBottom:'12px'}}>☕</div>
+            <div className="display text-4xl" style={{color:c.inkFaint}}>NO DRINKS AVAILABLE</div>
+          </div>
         )}
       </div>
 
@@ -1514,7 +1523,7 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
   return (
     <div className="kiosk-grain fixed inset-0 overflow-y-auto no-scroll" style={{background:c.bg}}>
       <div className="max-w-xl mx-auto px-4 py-8 text-center">
-        <button onClick={onCancel} className="flex items-center gap-2 mb-8 font-bold text-sm hover:opacity-60 transition-all" style={{color:c.inkMid}}>
+        <button onClick={onCancel} className="inline-flex items-center gap-2 mb-8 font-bold text-sm hover:opacity-60 transition-all mx-auto" style={{color:c.inkMid}}>
           ← Back to menu
         </button>
 
@@ -1561,7 +1570,7 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
               </div>
             )}
             <input type="text" placeholder="Anything else? (optional)"
-              value={specialRequest} onChange={e=>onSpecialRequest(e.target.value)}
+              value={active.filter(x=>!chips.includes(x)).join(', ')} onChange={e=>{ const free=e.target.value; const cp=active.filter(x=>chips.includes(x)); onSpecialRequest([...cp,free].filter(Boolean).join(', ')); }}
               className="w-full px-6 py-5 rounded-[2rem] text-base font-medium border outline-none text-center"
               style={{background:c.surface2,borderColor:c.border,color:c.ink}}/>
             <div className="pt-2">
@@ -1623,6 +1632,7 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings}) =
 /* PIN pad — uses CSS vars, dark mode safe */
 const PinPad = ({correctPin,onSuccess,onCancel}) => {
   const [entry,setEntry]=useState(''); const [shake,setShake]=useState(false);
+  useEffect(()=>{ const fn=e=>{if(e.key==='Escape')onCancel();}; window.addEventListener('keydown',fn); return()=>window.removeEventListener('keydown',fn); },[onCancel]);
   const press=d=>{ const n=(entry+d).slice(0,4); setEntry(n); if(n.length===4){ if(n===String(correctPin||DEFAULTS.DEFAULT_PIN)){onSuccess();} else{setShake(true);setTimeout(()=>{setEntry('');setShake(false);},600);} } };
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center" style={{background:'rgba(0,0,0,.72)',backdropFilter:'blur(14px)'}}>
@@ -1676,11 +1686,10 @@ const App = () => {
   useEffect(()=>{
     // Update browser tab title with queue count
     if (data.appMode === 'barista') {
-      document.title = data.orders.length > 0
-        ? `(${data.orders.length}) Nebulous Coffee`
-        : 'Nebulous Coffee';
+      const evtName=data.settings.eventName||'Nebulous Coffee';
+      document.title = data.orders.length>0 ? `(${data.orders.length}) ${evtName}` : evtName;
     } else {
-      document.title = 'Nebulous Coffee';
+      document.title = data.settings.eventName||'Nebulous Coffee';
     }
     if(prevLen.current===-1){ prevLen.current=data.orders.length; return; }
     if(data.appMode==='barista'&&data.orders.length>prevLen.current) data.playChime();
@@ -1705,8 +1714,9 @@ const App = () => {
   const handleConfirmOrder=async()=>{
     window.scrollTo({top:0,behavior:'instant'});
     try {
-      const num=await data.placeOrder({customer:customerName.trim()||'Guest',flavor:pendingOrder.name,price:pendingOrder.price||0,temp:pendingOrder.temp,milk:selectedMilk,note:specialRequest.trim()});
-      setSuccessData({orderNumber:num,customer:customerName.trim()||'Guest',flavor:pendingOrder.name,milk:selectedMilk,temp:pendingOrder.temp,price:pendingOrder.price||0});
+      const rawN=customerName.trim(); const fmtN=rawN?rawN.replace(/\b\w/g,c=>c.toUpperCase()):'Guest';
+      const num=await data.placeOrder({customer:fmtN,flavor:pendingOrder.name,price:pendingOrder.price||0,temp:pendingOrder.temp,milk:selectedMilk,note:specialRequest.trim()});
+      setSuccessData({orderNumber:num,customer:fmtN,flavor:pendingOrder.name,milk:selectedMilk,temp:pendingOrder.temp,price:pendingOrder.price||0});
       setPendingOrder(null);setSelectedMilk(null);setSpecialRequest('');setCustomerName('');
       setTimeout(()=>setSuccessData(null),DEFAULTS.SUCCESS_MS);
     } catch(e) {
