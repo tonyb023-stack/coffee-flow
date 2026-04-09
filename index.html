@@ -397,21 +397,27 @@ const useAppData = () => {
   }, [history, shift]);
 
   /* Estimated wait for a new customer joining the back of the queue.
-     Uses real throughput (shift duration ÷ drinks completed), capped at
-     6 minutes per drink to prevent stale/unended shifts from exploding.
-     Requires at least 3 completed drinks before trusting the data. */
+     Priority: avgWait from completed orders (directly observed) divided by 2
+     to strip the queue component, leaving just the make-time rate.
+     Falls back to shift throughput (total time / drinks made) then default 3m.
+     Clamped 1-8 min. +1 accounts for the new customer's own drink. */
   const estWait = useMemo(() => {
-    const durationMins = shift.active && shift.startTime > 0
-      ? (Date.now() - shift.startTime) / 60000
-      : 0;
     const completed = shiftStats.count;
-    let minsPerDrink = 3; // sensible default
-    if (durationMins > 0 && completed >= 3) {
-      const raw = durationMins / completed;
-      minsPerDrink = Math.min(6, Math.max(1, raw)); // clamp 1–6 min
+    let minsPerDrink = 3;
+
+    const parsedAvg = parseFloat(shiftStats.avgWait);
+    if (completed >= 3 && !isNaN(parsedAvg) && parsedAvg > 0) {
+      // avgWait includes queue time + make time; divide by 2 to isolate make time.
+      // Clamp generously since early-shift data can be noisy.
+      minsPerDrink = Math.min(8, Math.max(1, parsedAvg / 2));
+    } else if (shift.active && shift.startTime > 0 && completed >= 3) {
+      const durationMins = (Date.now() - shift.startTime) / 60000;
+      minsPerDrink = Math.min(6, Math.max(1, durationMins / completed));
     }
-    return Math.max(1, Math.round(orders.length * minsPerDrink));
-  }, [orders.length, shiftStats.count, shift]);
+
+    // +1: orders.length drains the current queue; the +1 is the new customer's own drink
+    return Math.max(1, Math.round((orders.length + 1) * minsPerDrink));
+  }, [orders.length, shiftStats.avgWait, shiftStats.count, shift]);
 
   const exportCSV = useCallback(frame => {
     if (frame==='shift' && shift.startTime===0) return;  // button is visually disabled already
