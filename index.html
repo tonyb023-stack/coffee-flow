@@ -194,6 +194,7 @@ const DEFAULTS = {
   QUEUE_WARN:6, DEFAULT_PIN:'1234', QUICK_REQUESTS:['Half Sweet','Less Ice','Extra Hot','No Foam'],
   TTL_DAYS:30, QUICK_ADD_MS:2500,
   CHECKLIST_KEY:'neb-check-v1',
+  QUICK_REQ_KEY:'neb-qreq-v1',
   CHECKLIST:[
     {id:'menu',    label:'Menu drinks are set & priced'},
     {id:'milks',   label:'Milk options are configured'},
@@ -285,6 +286,7 @@ const Db = {
     DB.ref(`history/${order._key}`).remove();
   },
   addNote:      (key,note)  => DB.ref(`orders/${key}/baristaNote`).set(note),
+  addHistoryNote:(key,note)  => DB.ref(`history/${key}/baristaNote`).set(note),
   clearHistory: ()          => DB.ref('history').remove(),
   pruneHistory() {
     const c = Date.now()-(DEFAULTS.TTL_DAYS*86400000);
@@ -304,7 +306,7 @@ const Db = {
     DB.ref('shift').set({active:false,startTime:0});
     DB.ref('pause').set({active:false,message:''});  // clear pause when shift ends
   },
-  setPause:   m  => DB.ref('pause').set({active:true,message:m||'Back soon!'}),
+  setPause:   m  => DB.ref('pause').set({active:true,message:m||'Back soon!',since:Date.now()}),
   clearPause: () => DB.ref('pause').set({active:false,message:''}),
   patchSettings: p => DB.ref('settings').update(p),
 };
@@ -321,6 +323,7 @@ const useAppData = () => {
     darkMode:false, kioskDark:false, muteSounds:false,
     warnAt:DEFAULTS.QUEUE_WARN,
     warnMins:DEFAULTS.WARN_MINS, lateMins:DEFAULTS.LATE_MINS,
+    customChips:'',
   });
   const [orders,  setOrders]  = useState([]);
   const [history, setHistory] = useState([]);
@@ -332,11 +335,12 @@ const useAppData = () => {
 
   useEffect(() => { Db.auth(); }, []);
 
+  const errTimerRef = useRef(null);
   const onErr = useCallback(e => {
     console.error('Firebase:', e);
     setDbError(e?.message||'Database error');
-    // Auto-dismiss after 8 seconds
-    setTimeout(()=>setDbError(null), 8000);
+    clearTimeout(errTimerRef.current);
+    errTimerRef.current = setTimeout(()=>setDbError(null), 8000);
   }, []);
 
   // Clear error banner when connection is restored
@@ -428,8 +432,8 @@ const useAppData = () => {
     let csv='Order#,Customer,Flavor,Temp,Milk,Special Request,Price,Wait,Note,Date\n';
     rows.forEach(o=>{
       csv+=[o.orderNumber||'',esc(o.customer),esc(o.flavor),o.temp,esc(o.milk),
-            esc(o.note),o.price,`${o.waitTime}m`,esc(o.baristaNote),
-            new Date(o.completedAt).toLocaleString()].join(',')+'\n';
+            esc(o.note),o.price,o.waitTime===0?'<1m':`${o.waitTime}m`,esc(o.baristaNote),
+            new Date(o.completedAt).toISOString()].join(',')+'\n';
     });
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
     Object.assign(document.createElement('a'),{href:url,download:`neb_${frame}_${Date.now()}.csv`}).click();
@@ -486,7 +490,7 @@ const useAppData = () => {
     online,dbError,settings,orders,history,menu,milks,shift,pause,appMode,shiftStats,estWait,
     switchMode,updateSettings,exportCSV,playChime,playReadyChime,testSound,startShift,
     placeOrder:Db.placeOrder, markReady:Db.markReady, updateOrder:Db.updateOrder,
-    completeOrder:Db.completeOrder, undoComplete:Db.undoComplete, addNote:Db.addNote,
+    completeOrder:Db.completeOrder, undoComplete:Db.undoComplete, addNote:Db.addNote, addHistoryNote:Db.addHistoryNote,
     clearHistory:Db.clearHistory, endShift:Db.endShift, setPause:Db.setPause, clearPause:Db.clearPause,
     addMenuItem,updateMenuItem,deleteMenuItem,toggleDrinkSoldOut,toggleFeatured,moveMenuUp,moveMenuDown,
     addMilkItem,updateMilkItem,deleteMilkItem,toggleMilkSoldOut,moveMilkUp,moveMilkDown,resetSoldOut,
@@ -620,7 +624,7 @@ const AnimatedCheck = ({size=112,color='#22c55e'}) => (
    SECTION 5 — BARISTA UI VIEWS
    ═══════════════════════════════════════════════════════════════════ */
 
-const BaristaNav = ({view,setView,queueCount,online}) => (
+const BaristaNav = ({view,setView,queueCount,online,paused}) => (
   <nav className="flex items-center gap-2 p-2 rounded-2xl shadow-soft border mb-5" style={S.surf}>
     <div className="flex gap-1 flex-1 overflow-x-auto no-scroll">
       {['queue','add','history','stats','settings'].map(t=>(
@@ -629,11 +633,18 @@ const BaristaNav = ({view,setView,queueCount,online}) => (
           style={view===t
             ? {background:'var(--ink)',color:'var(--bg)',transition:'background .2s,color .2s'}
             : {...S.mid,transition:'background .2s,color .2s'}}>
-          {t==='add'?'Add Order':t==='queue'?'Queue':t==='history'?'History':t==='stats'?'Stats':'Settings'}
+          {t==='add'?'Add (N)':t==='queue'?'Queue (Q)':t==='history'?'History (H)':t==='stats'?'Stats (S)':'Settings'}
           {t==='queue'&&<Badge count={queueCount}/>}
         </button>
       ))}
     </div>
+    {paused&&(
+      <div className="flex items-center gap-1 px-2.5 py-1 rounded-full flex-shrink-0"
+           style={{background:'rgba(245,158,11,.15)',border:'1px solid rgba(245,158,11,.3)'}}>
+        <span style={{fontSize:'9px'}}>⏸</span>
+        <span className="text-[8px] font-black uppercase tracking-widest" style={{color:'#d97706'}}>Paused</span>
+      </div>
+    )}
     <ConnectionDot online={online}/>
   </nav>
 );
@@ -650,9 +661,15 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins,mil
   const [mounted, setMounted]  = useState(false);
   useEffect(()=>{ const id=setTimeout(()=>setMounted(true),10); return()=>clearTimeout(id); },[]);
 
-  /* Single interval — elapsed passed to OrderTimer as prop */
+  /* Single interval — synced to minute boundary, both timeout and interval properly cleaned up */
   const [elapsed,setElapsed] = useState(()=>Math.round((Date.now()-order.startTime)/60000));
-  useEffect(()=>{ const id=setInterval(()=>setElapsed(Math.round((Date.now()-order.startTime)/60000)),60000); return()=>clearInterval(id); },[order.startTime]);
+  useEffect(()=>{
+    const tick=()=>setElapsed(Math.round((Date.now()-order.startTime)/60000));
+    let intervalId=null;
+    const msUntilNextMin = 60000 - (Date.now()%60000);
+    const timeoutId = setTimeout(()=>{ tick(); intervalId=setInterval(tick,60000); }, msUntilNextMin);
+    return()=>{ clearTimeout(timeoutId); if(intervalId) clearInterval(intervalId); };
+  },[order.startTime]);
 
   const isLate    = elapsed>=LATE;
   const isWarn    = elapsed>=WARN&&!isLate;
@@ -661,8 +678,8 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins,mil
   const saveNote  = ()=>{ onNote(order._key,noteVal); setShowNote(false); };
 
   return (
-    <div className={`rounded-[2rem] border border-l-[10px] shadow-soft p-4 transition-all ${tempClass} ${stateCls}`}
-         style={{...S.surf, opacity:mounted?1:0, transform:mounted?'translateY(0)':'translateY(12px)', transition:'opacity .35s, transform .35s cubic-bezier(.16,1,.3,1), box-shadow .3s'}}>
+    <div className={`rounded-[2rem] border border-l-[10px] shadow-soft p-4 ${tempClass} ${stateCls}`}
+         style={{...S.surf, opacity:mounted?1:0, transform:mounted?'translateY(0)':'translateY(12px)', transition:'opacity .35s, transform .35s cubic-bezier(.16,1,.3,1), box-shadow .3s, border-color .2s'}}>
       <div className="flex items-start justify-between gap-3 mb-1.5">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -731,7 +748,7 @@ const EditOrderModal = ({order,milks,onSave,onClose}) => {
       </div>
       <div className="space-y-3 text-left">
         <div><label className="text-[9px] font-bold uppercase tracking-widest block mb-1" style={S.faint}>Name</label>
-          <input value={customer} onChange={e=>setCustomer(e.target.value)} className="w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none" style={S.inp}/></div>
+          <input value={customer} onChange={e=>setCustomer(e.target.value)} onKeyDown={e=>e.key==='Enter'&&onSave({customer,note,temp,milk})} className="w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none" style={S.inp}/></div>
         <div><label className="text-[9px] font-bold uppercase tracking-widest block mb-1" style={S.faint}>Temperature</label>
           <div className="flex gap-2">
             {['HOT','ICED'].map(t=>(
@@ -746,7 +763,7 @@ const EditOrderModal = ({order,milks,onSave,onClose}) => {
               style={milk===m.name?{background:'var(--ink)',color:'var(--bg)'}:{...S.surf2,...S.ink}}>{m.name}</button>))}
           </div></div>)}
         <div><label className="text-[9px] font-bold uppercase tracking-widest block mb-1" style={S.faint}>Special Request</label>
-          <input value={note} onChange={e=>setNote(e.target.value)} className="w-full px-4 py-3 rounded-xl text-sm font-medium border outline-none" style={S.inp}/></div>
+          <input value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>e.key==='Enter'&&onSave({customer,note,temp,milk})} className="w-full px-4 py-3 rounded-xl text-sm font-medium border outline-none" style={S.inp}/></div>
       </div>
       <div className="flex gap-3 mt-5">
         <button onClick={onClose} className="flex-1 py-4 rounded-2xl font-bold text-sm border" style={S.surf}>Cancel</button>
@@ -757,7 +774,7 @@ const EditOrderModal = ({order,milks,onSave,onClose}) => {
 };
 
 /* Ready orders pinned at top, pending below */
-const QueueView = ({orders,settings,milks,onReady,onComplete,onNote,onEdit,estWait}) => {
+const QueueView = ({orders,settings,milks,onReady,onComplete,onNote,onEdit,estWait,shiftActive}) => {
   const warn     = settings.warnAt||DEFAULTS.QUEUE_WARN;
   const warnMins = settings.warnMins||DEFAULTS.WARN_MINS;
   const lateMins = settings.lateMins||DEFAULTS.LATE_MINS;
@@ -765,15 +782,16 @@ const QueueView = ({orders,settings,milks,onReady,onComplete,onNote,onEdit,estWa
   const pending  = orders.filter(o=>!o.ready);
   return (
     <div className="space-y-2.5 animate-in">
-      {orders.length>=warn&&(
+      {pending.length>=warn&&(
         <div className="queue-warn-text px-5 py-3 rounded-2xl font-bold text-sm text-center" style={{background:'#fde68a'}}>
-          ⚡ {orders.length} orders in queue · est. {estWait}m wait shown to customers
+          ⚡ {pending.length} in queue{ready.length>0?` · ${ready.length} ready for pickup`:''} · est. {estWait}m wait shown to customers
         </div>
       )}
       {orders.length===0&&(
         <div className="text-center py-24">
           <div style={{fontSize:'3rem',opacity:.15,marginBottom:'12px'}}>☕</div>
-          <div className="display text-5xl" style={S.faint}>QUEUE CLEAR</div>
+          <div className="display text-5xl mb-2" style={S.faint}>QUEUE CLEAR</div>
+          <p className="text-sm font-medium" style={S.faint}>{shiftActive?'All orders completed ✓':'Start a shift from the Stats tab'}</p>
         </div>
       )}
       {ready.length>0&&(
@@ -788,10 +806,50 @@ const QueueView = ({orders,settings,milks,onReady,onComplete,onNote,onEdit,estWa
   );
 };
 
+/* History detail modal — shows full order and offers re-queue */
+const HistoryDetailModal = ({order,onClose,onRequeue,onSaveNote}) => {
+  const [noteVal,setNoteVal]=useState(order.baristaNote||'');
+  const [noteSaved,setNoteSaved]=useState(false);
+  const saveNote=()=>{ onSaveNote&&onSaveNote(order._key,noteVal); setNoteSaved(true); setTimeout(()=>setNoteSaved(false),2000); };
+  return (
+  <Modal onClose={onClose}>
+    <div className="text-left">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">#{order.orderNumber??'—'}</span>
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">{fmtTime(order.completedAt)}</span>
+        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${order.temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{order.temp}</span>
+      </div>
+      <h2 className="display text-3xl mb-1" style={S.ink}>{order.customer||'Guest'}</h2>
+      <p className="text-sm font-bold mb-3" style={S.mid}>{order.flavor} · {order.milk}</p>
+      {order.note&&<p className="text-xs mb-3 px-3 py-1.5 rounded-full inline-block bg-emerald-50 text-emerald-600 font-bold">✎ {order.note}</p>}
+      <div className="mt-2">
+        <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Barista Note</label>
+        <div className="flex gap-2">
+          <input value={noteVal} onChange={e=>setNoteVal(e.target.value)}
+            placeholder="Add a note…" className="flex-1 px-3 py-2.5 rounded-xl text-xs font-medium border outline-none"
+            style={S.inp} onKeyDown={e=>e.key==='Enter'&&saveNote()}/>
+          <button onClick={saveNote} className="px-3 rounded-xl text-xs font-bold transition-all"
+            style={noteSaved?{background:'#22c55e',color:'#fff'}:{background:'var(--ink)',color:'var(--bg)'}}>
+            {noteSaved?'✓':'Save'}
+          </button>
+        </div>
+      </div>
+      <div className="flex justify-between items-center mt-4 pt-4 border-t" style={{borderColor:'var(--border)'}}>
+        <span className="text-xs font-bold" style={S.faint}>Wait: {order.waitTime===0?'<1':order.waitTime}m{Number(order.price)>0?` · ${fmtPrice(order.price)}`:''}</span>
+      </div>
+    </div>
+    <div className="flex gap-3 mt-5">
+      <button onClick={onClose} className="flex-1 py-3.5 rounded-2xl font-bold text-sm border" style={S.surf}>Close</button>
+      {onRequeue&&<button onClick={()=>{onRequeue(order);onClose();}} className="flex-1 py-3.5 rounded-2xl font-bold text-sm" style={{background:'var(--ink)',color:'var(--bg)'}}>↑ Re-queue</button>}
+    </div>
+  </Modal>
+); };
+
 /* History view with search, date grouping, and search clear button */
-const HistoryView = ({history,onClear}) => {
+const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
   const [page,setPage]=useState(1);
   const [q,setQ]=useState('');
+  const [detail,setDetail]=useState(null);
   const searchRef=useRef(null);
   useEffect(()=>{ setPage(1); },[history.length]);
   useEffect(()=>{
@@ -807,10 +865,11 @@ const HistoryView = ({history,onClear}) => {
         o.customer?.toLowerCase().includes(q.toLowerCase())||
         o.flavor?.toLowerCase().includes(q.toLowerCase())||
         o.note?.toLowerCase().includes(q.toLowerCase())||
-        o.milk?.toLowerCase().includes(q.toLowerCase()))
+        o.milk?.toLowerCase().includes(q.toLowerCase())||
+        o.baristaNote?.toLowerCase().includes(q.toLowerCase()))
     : history, [history,q]);
-  const shown   = filtered.slice(0,page*DEFAULTS.HISTORY_PAGE);
-  const hasMore = shown.length<filtered.length;
+  const shown   = q.trim() ? filtered : filtered.slice(0,page*DEFAULTS.HISTORY_PAGE);
+  const hasMore = !q.trim() && shown.length<filtered.length;
 
   const today     = useMemo(()=>{ const d=new Date(); d.setHours(0,0,0,0); return d; },[]);
   const yesterday = useMemo(()=>{ const d=new Date(today); d.setDate(today.getDate()-1); return d; },[today]);
@@ -853,7 +912,7 @@ const HistoryView = ({history,onClear}) => {
             <p className="text-[9px] font-black uppercase tracking-widest mb-2 px-1" style={S.faint}>{group.label}</p>
             <div className="space-y-2">
               {group.items.map(o=>(
-                <div key={o._key||o.orderNumber} className="flex justify-between items-start p-4 rounded-2xl border gap-3" style={S.surf2}>
+                <div key={o._key||o.orderNumber} onClick={()=>setDetail(o)} className="flex justify-between items-start p-4 rounded-2xl border gap-3 cursor-pointer hover:opacity-80 transition-all" style={S.surf2}>
                   <div className="flex-1 min-w-0">
                     <div className="flex gap-2 items-center mb-1 flex-wrap">
                       <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">#{o.orderNumber??'—'}</span>
@@ -877,15 +936,16 @@ const HistoryView = ({history,onClear}) => {
           </div>
         ))}
       </div>
-      {(()=>{ const tot=filtered.reduce((s,o)=>s+Number(o.price||0),0); return tot>0?(<div className="flex justify-between items-center pt-4 mt-2 border-t" style={{borderColor:'var(--border)'}}><span className="text-[10px] font-bold uppercase tracking-widest" style={S.faint}>{filtered.length} orders</span><span className="font-black" style={S.ink}>{fmtPrice(tot)}</span></div>):null; })()}
+      {filtered.length>0&&(()=>{ const tot=filtered.reduce((s,o)=>s+Number(o.price||0),0); return (<div className="flex justify-between items-center pt-4 mt-2 border-t" style={{borderColor:'var(--border)'}}><span className="text-[10px] font-bold uppercase tracking-widest" style={S.faint}>{filtered.length} order{filtered.length!==1?'s':''}</span>{tot>0&&<span className="font-black" style={S.ink}>{fmtPrice(tot)}</span>}</div>); })()}
       {hasMore&&<button onClick={()=>setPage(p=>p+1)} className="w-full mt-4 py-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-80" style={{...S.surf2,...S.mid}}>Load More ({filtered.length-shown.length} remaining)</button>}
+      {detail&&<HistoryDetailModal order={detail} onClose={()=>setDetail(null)} onRequeue={onRequeue} onSaveNote={onSaveNote}/>}
     </div>
   );
 };
 
-const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exportCSV,onGenerateSummaryCard}) => {
+const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exportCSV,onGenerateSummaryCard,queueDepth}) => {
   const pct   = settings.guestCount>0 ? Math.min(100,Math.round((shiftStats.count/settings.guestCount)*100)) : null;
-  const noData= !shift.active&&shift.startTime===0;
+  const noData= shiftStats.count===0 && shift.startTime===0;
   const hours = Object.entries(shiftStats.hourCounts||{}).map(([h,c])=>({label:`${h%12||12}${Number(h)>=12?'p':'a'}`,count:c})).sort((a,b)=>parseInt(a.label)-parseInt(b.label));
   const drinks= Object.entries(shiftStats.drinkCounts||{}).map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count).slice(0,6);
 
@@ -894,11 +954,11 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
   useEffect(()=>{
     setLiveDur(shiftStats.durationStr);
     if (!shift.active) return;
-    const id = setInterval(()=>{
-      const ms = Date.now()-shift.startTime;
-      setLiveDur(`${Math.floor(ms/3600000)}h ${Math.floor((ms%3600000)/60000)}m`);
-    }, 60000);
-    return ()=>clearInterval(id);
+    const tick=()=>{ const ms=Date.now()-shift.startTime; setLiveDur(`${Math.floor(ms/3600000)}h ${Math.floor((ms%3600000)/60000)}m`); };
+    let intervalId=null;
+    const msUntilNextMin = 60000-(Date.now()%60000);
+    const timeoutId = setTimeout(()=>{ tick(); intervalId=setInterval(tick,60000); }, msUntilNextMin);
+    return ()=>{ clearTimeout(timeoutId); if(intervalId) clearInterval(intervalId); };
   },[shift.active, shift.startTime, shiftStats.durationStr]);
 
   /* Stale shift: active but started more than 14 hours ago */
@@ -935,14 +995,15 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
             <p className="text-[9px] font-bold uppercase tracking-widest mt-2.5" style={S.faint}>
               {fmtTime(shift.startTime)}
               {liveDur!=='—'&&<span className="text-emerald-500"> · {liveDur}</span>}
+              {queueDepth>0&&<span className="text-amber-500"> · {queueDepth} in queue</span>}
             </p>
           )}
         </div>
         {noData?(
           <div className="text-center py-16 border-t" style={{borderColor:'var(--border)'}}>
             <div style={{fontSize:'2.5rem',opacity:.12,marginBottom:'12px'}}>📊</div>
-            <p className="display text-4xl mb-2" style={S.faint}>NO DATA YET</p>
-            <p className="text-sm font-medium" style={S.mid}>Start a shift to begin tracking stats</p>
+            <p className="display text-4xl mb-2" style={S.faint}>{shift.startTime>0?'SHIFT ENDED':'NO DATA YET'}</p>
+            <p className="text-sm font-medium" style={S.mid}>{shift.startTime>0?'Start a new shift to continue':'Start a shift to begin tracking stats'}</p>
           </div>
         ):(
           <>
@@ -951,8 +1012,10 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
               <p className="display text-8xl" style={S.ink}>{shiftStats.count}</p>
               {shiftStats.revenue>0&&<p className="text-xl font-black mt-1" style={S.mid}>${shiftStats.revenue.toFixed(2)}</p>}
               <div className="flex justify-center gap-4 mt-2">
-                <span className="text-xs font-bold bg-red-50 text-red-500 px-3 py-1 rounded-full">🔥 {shiftStats.hotCount} Hot</span>
-                <span className="text-xs font-bold bg-blue-50 text-blue-500 px-3 py-1 rounded-full">🧊 {shiftStats.icedCount} Iced</span>
+                {(()=>{ const tot=(shiftStats.hotCount||0)+(shiftStats.icedCount||0); return (<>
+                  <span className="text-xs font-bold bg-red-50 text-red-500 px-3 py-1 rounded-full">🔥 {shiftStats.hotCount||0} Hot{tot>0?` · ${Math.round((shiftStats.hotCount||0)/tot*100)}%`:''}</span>
+                  <span className="text-xs font-bold bg-blue-50 text-blue-500 px-3 py-1 rounded-full">🧊 {shiftStats.icedCount||0} Iced{tot>0?` · ${Math.round((shiftStats.icedCount||0)/tot*100)}%`:''}</span>
+                </>); })()}
               </div>
             </div>
             {pct!==null&&(
@@ -961,7 +1024,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
                   <span>Event Pacing</span><span>{shiftStats.count} / {settings.guestCount} ({pct}%)</span>
                 </div>
                 <div className="w-full rounded-full h-2 overflow-hidden" style={S.surf2}>
-                  <div className="h-full rounded-full bg-emerald-500 transition-all duration-700" style={{width:`${pct}%`}}/>
+                  <div className="h-full rounded-full transition-all duration-700" style={{width:`${pct}%`,background:settings.accentColor||'#22c55e'}}/>
                 </div>
               </div>
             )}
@@ -983,7 +1046,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
             {hours.length>0&&(
               <div className="py-5 border-t space-y-2" style={{borderColor:'var(--border)'}}>
                 <p className="text-[9px] font-bold uppercase tracking-widest mb-3" style={S.faint}>Orders by Hour</p>
-                {hours.map(h=><MiniBar key={h.label} label={h.label} value={h.count} max={Math.max(1,...hours.map(x=>x.count))} color="#3b82f6"/>)}
+                {hours.map(h=><MiniBar key={h.label} label={h.label} value={h.count} max={Math.max(1,...hours.map(x=>x.count))} color={settings.accentColor||'#3b82f6'}/>)}
               </div>
             )}
           </>
@@ -1004,7 +1067,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
 };
 
 /* Quick Add — resets on unmount, longer success, shows order# */
-const QuickAddView = ({menu,milks,onPlace}) => {
+const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
   const [name,setName]=useState(''); const [drink,setDrink]=useState(null);
   const [temp,setTemp]=useState(null); const [milk,setMilk]=useState(null);
   const [note,setNote]=useState(''); const [placed,setPlaced]=useState(false);
@@ -1021,7 +1084,7 @@ const QuickAddView = ({menu,milks,onPlace}) => {
   const avail=menu.filter(d=>!d.soldOut), availMilks=milks.filter(m=>!m.soldOut);
   if(placed) return (
     <div className="rounded-[2.5rem] p-10 shadow-soft border text-center animate-pop" style={S.surf}>
-      <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-3"><span className="text-white text-2xl font-black">✓</span></div>
+      <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style={{background:accentColor||'#22c55e'}}><span className="text-white text-2xl font-black">✓</span></div>
       {orderNum&&<p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={S.faint}>Order #{orderNum}</p>}
       <p className="display text-3xl" style={S.ink}>ORDER PLACED</p>
       {drink&&<p className="text-sm font-bold mt-1" style={S.mid}>{drink.name} · {temp} · {milk}</p>}
@@ -1076,6 +1139,7 @@ const QuickAddView = ({menu,milks,onPlace}) => {
 
 /* Checklist — persists to localStorage, clears on new shift */
 const ChecklistView = ({settings,shift,menu,milks}) => {
+  const [expanded,setExpanded]=useState(true);
   const [checked,setChecked]=useState(()=>{ try{return JSON.parse(localStorage.getItem(DEFAULTS.CHECKLIST_KEY)||'{}');}catch{return {};} });
   const prevActive=useRef(shift.active);
   useEffect(()=>{
@@ -1090,9 +1154,24 @@ const ChecklistView = ({settings,shift,menu,milks}) => {
   const auto={menu:menu.length>0,milks:milks.length>0,soldout:menu.length>0&&milks.length>0&&!menu.some(d=>d.soldOut)&&!milks.some(m=>m.soldOut),pin:!!(settings.pin&&settings.pin!==DEFAULTS.DEFAULT_PIN),guests:Number(settings.guestCount)>0,shift:shift.active};
   const items=DEFAULTS.CHECKLIST.map(it=>({...it,done:auto[it.id]||!!checked[it.id],auto:auto[it.id]}));
   const all=items.every(i=>i.done);
+  /* Auto-collapse once shift is live and all checks pass */
+  useEffect(()=>{ if(shift.active&&all) setExpanded(false); },[shift.active,all]);
+  if(!expanded) return (
+    <button onClick={()=>setExpanded(true)} className="w-full rounded-[2.5rem] px-8 py-5 shadow-soft border animate-in flex items-center justify-between" style={S.surf}>
+      <div className="flex items-center gap-3">
+        <span className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs flex-shrink-0">✓</span>
+        <span className="display text-xl" style={S.ink}>PRE-EVENT CHECKLIST</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>All clear</span>
+      </div>
+      <span className="text-[10px] font-bold uppercase tracking-widest" style={S.faint}>Expand</span>
+    </button>
+  );
   return (
     <div className="rounded-[2.5rem] p-8 shadow-soft border animate-in" style={S.surf}>
-      <h2 className="display text-3xl mb-1" style={S.ink}>PRE-EVENT CHECKLIST</h2>
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="display text-3xl" style={S.ink}>PRE-EVENT CHECKLIST</h2>
+        {all&&<button onClick={()=>setExpanded(false)} className="text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full" style={{...S.surf2,color:'var(--ink-faint)'}}>Collapse</button>}
+      </div>
       <p className="text-[10px] font-bold uppercase tracking-widest mb-5" style={S.faint}>Persists between tabs · resets when shift starts</p>
       <div className="space-y-2">
         {items.map(item=>(
@@ -1117,7 +1196,7 @@ const SettingsView = ({
   menu,milks,settings,shift,pause,
   onAddDrink,onUpdateDrink,onDeleteDrink,onToggleDrinkSoldOut,onToggleFeatured,onMoveMenuUp,onMoveMenuDown,
   onAddMilk, onUpdateMilk, onDeleteMilk, onToggleMilkSoldOut, onMoveMilkUp,onMoveMilkDown,
-  onResetSoldOut,onUpdateSettings,onLaunchKiosk,onSetPause,onClearPause,onTestSound,
+  onResetSoldOut,onUpdateSettings,onLaunchKiosk,onSetPause,onClearPause,onTestSound,onClearHistory,
 }) => {
   const [pauseMsg,setPauseMsg]=useState(()=>pause.message||'Back soon!');
   // Sync pauseMsg if the pause state changes externally while Settings is open
@@ -1134,6 +1213,7 @@ const SettingsView = ({
   },[showQR]);
 
   const [copied,setCopied]=useState(false);
+  const [showClearConfirm,setShowClearConfirm]=useState(false);
   const handleCopy=()=>{ try{navigator.clipboard.writeText(window.location.href);}catch(_){} setCopied(true); setTimeout(()=>setCopied(false),2000); };
   const card='rounded-[2.5rem] p-8 shadow-soft border';
   const inp ='w-full px-5 py-3.5 rounded-2xl text-sm font-bold outline-none border';
@@ -1220,13 +1300,26 @@ const SettingsView = ({
         </div>
       </div>
 
+      {/* Quick Request Chips */}
+      <div className={card} style={S.surf}>
+        <h3 className="display text-2xl mb-1" style={S.ink}>QUICK REQUESTS</h3>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={S.faint}>Chips shown on kiosk · comma-separated</p>
+        <input value={settings.customChips||''} onChange={e=>onUpdateSettings({customChips:e.target.value})}
+          placeholder={DEFAULTS.QUICK_REQUESTS.join(', ')}
+          className={`${inp} font-medium`} style={S.inp}/>
+        <p className="text-[9px] mt-2" style={S.faint}>Leave blank to use defaults: {DEFAULTS.QUICK_REQUESTS.join(' · ')}</p>
+      </div>
+
       {/* Break Mode */}
       <div className={card} style={S.surf}>
         <h3 className="display text-2xl mb-1" style={S.ink}>BREAK MODE</h3>
         <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={S.faint}>Blocks new orders · customers see a pause screen</p>
         {pause.active?(
           <div className="space-y-3">
-            <div className="py-3 px-4 rounded-2xl bg-amber-50 border border-amber-200 text-center"><p className="text-amber-700 font-bold text-sm">⏸ Kiosk paused — "{pause.message}"</p></div>
+            <div className="py-3 px-4 rounded-2xl bg-amber-50 border border-amber-200 text-center">
+              <p className="text-amber-700 font-bold text-sm">⏸ Kiosk paused — "{pause.message}"</p>
+              {pause.since&&<p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={{color:'#d97706'}}>Since {fmtTime(pause.since)}</p>}
+            </div>
             <button onClick={onClearPause} className="w-full py-3.5 rounded-2xl font-bold text-sm bg-emerald-500 text-white">▶ Resume Kiosk</button>
           </div>
         ):(
@@ -1329,6 +1422,15 @@ const SettingsView = ({
         <p className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>💡 Triple-tap top-right corner on kiosk screen then enter PIN to exit</p>
       </div>
 
+      {/* Danger Zone */}
+      <div className={card} style={{...S.surf,border:'1px solid rgba(232,64,64,.25)'}}>
+        <h3 className="display text-2xl mb-1" style={{color:'#e84040'}}>DANGER ZONE</h3>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={S.faint}>Irreversible actions</p>
+        <button className="w-full py-3.5 rounded-2xl font-bold text-sm border border-red-200 text-red-400 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all" onClick={()=>setShowClearConfirm(true)}>
+          🗑 Clear All Order History
+        </button>
+      </div>
+
       <button onClick={onLaunchKiosk} className="w-full py-8 rounded-[2.5rem] display text-3xl shadow-lift transition-transform active:scale-[.98]"
         style={{background:'var(--ink)',color:'var(--bg)'}}>
         LAUNCH KIOSK →
@@ -1336,17 +1438,20 @@ const SettingsView = ({
 
       {delDrink&&<ConfirmDeleteModal name={delDrink.name} type="DRINK" onConfirm={()=>{onDeleteDrink(delDrink._key);setDelDrink(null);}} onCancel={()=>setDelDrink(null)}/>}
       {delMilk &&<ConfirmDeleteModal name={delMilk.name}  type="MILK"  onConfirm={()=>{onDeleteMilk(delMilk._key); setDelMilk(null);}}  onCancel={()=>setDelMilk(null)}/>}
+      {showClearConfirm&&<ClearHistoryModal onConfirm={()=>{onClearHistory();setShowClearConfirm(false);}} onCancel={()=>setShowClearConfirm(false)}/>}
     </div>
   );
 };
 
-const ShiftEndModal=({stats,onConfirm,onCancel})=>(
+const ShiftEndModal=({stats,onConfirm,onCancel,activeOrders=0})=>(
   <Modal onClose={onCancel}>
     <h2 className="display text-4xl mb-2" style={S.ink}>END SHIFT?</h2>
+    {activeOrders>0&&<div className="mb-4 px-4 py-3 rounded-2xl text-sm font-bold text-center" style={{background:'rgba(245,158,11,.12)',color:'#d97706'}}>⚠️ {activeOrders} order{activeOrders!==1?'s':''} still in queue</div>}
     <div className="py-5 my-5 border-t border-b space-y-2" style={{borderColor:'var(--border)'}}>
       <p className="text-sm font-bold" style={S.mid}>🍵 {stats.count} drinks{(stats.hotCount||0)>0?` · 🔥${stats.hotCount||0} hot / 🧊${stats.icedCount||0} iced`:''}</p>
       <p className="text-sm font-bold" style={S.mid}>💵 ${stats.revenue.toFixed(2)} revenue</p>
       <p className="text-sm font-bold" style={S.mid}>⏱ {stats.avgWait==='—'?'—':`${stats.avgWait}m`} avg wait</p>
+      {stats.durationStr&&stats.durationStr!=='—'&&<p className="text-sm font-bold" style={S.mid}>🕐 {stats.durationStr} shift duration</p>}
     </div>
     <div className="flex flex-col gap-3">
       <button onClick={onConfirm} className="bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-sm">Confirm End Shift</button>
@@ -1404,7 +1509,7 @@ const kc = (dark) => ({
 });
 
 const AttractScreen = ({eventName,tagline,accent,onTap}) => {
-  const a=accent||'#22c55e'; const r=parseInt(a.slice(1,3),16),g=parseInt(a.slice(3,5),16),b=parseInt(a.slice(5,7),16);
+  const raw=accent||'#22c55e'; const a=raw.length===4?`#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`:raw; const r=parseInt(a.slice(1,3),16),g=parseInt(a.slice(3,5),16),b=parseInt(a.slice(5,7),16);
   const bg=`radial-gradient(ellipse at 50% 55%,rgba(${r},${g},${b},.18) 0%,transparent 65%),radial-gradient(ellipse at 15% 15%,rgba(${r},${g},${b},.08) 0%,transparent 55%),#0c0c0c`;
   return (
   <div className="kiosk-grain fixed inset-0 z-[300] flex flex-col items-center justify-center cursor-pointer select-none" style={{background:bg}} onClick={onTap}>
@@ -1440,6 +1545,13 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
   return (
     <div className="kiosk-grain min-h-screen pb-28" style={{background:c.bg}}>
       <div onClick={onExitTap} style={{position:'fixed',top:0,right:0,width:120,height:120,zIndex:10000}}/>
+      {queueCount>0&&(
+        <div className="fixed top-4 left-4 z-[50] flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+             style={{background:`${accent}22`,border:`1px solid ${accent}44`}}>
+          <span className="w-1.5 h-1.5 rounded-full" style={{background:accent}}/>
+          <span className="text-[9px] font-black uppercase tracking-widest" style={{color:accent}}>{queueCount} in queue</span>
+        </div>
+      )}
 
       {/* Header */}
       <div className="text-center pt-10 mb-8 px-4">
@@ -1540,7 +1652,7 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
   const c       = kc(settings.kioskDark);
   const dark    = settings.kioskDark;
   const available = milks.filter(m=>!m.soldOut);
-  const chips     = DEFAULTS.QUICK_REQUESTS;
+  const chips     = (settings.customChips||'').trim() ? settings.customChips.split(',').map(s=>s.trim()).filter(Boolean) : DEFAULTS.QUICK_REQUESTS;
   const active    = specialRequest?specialRequest.split(', ').filter(Boolean):[];
   const toggle    = chip=>{ const n=active.includes(chip)?active.filter(x=>x!==chip):[...active,chip]; onSpecialRequest(n.join(', ')); };
   const isHot     = pendingOrder.temp==='HOT';
@@ -1640,7 +1752,7 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings}) =
           style={{color:c.ink,fontSize:'clamp(3rem,12vw,6rem)',animation:'successItem .4s .75s both',opacity:0}}>
         ORDER PLACED
       </h1>
-      <div className="rounded-3xl px-8 py-5 shadow-soft border mt-4 max-w-xs w-full"
+      <div className="rounded-[2rem] px-8 py-5 shadow-soft border mt-4 max-w-xs w-full"
            style={{background:c.surface,borderColor:c.border,animation:'successItem .4s .9s both',opacity:0}}>
         <p className="font-black uppercase text-lg" style={{color:c.ink}}>{customer||'Guest'}</p>
         <p className="font-medium text-sm mt-1" style={{color:c.inkMid}}>
@@ -1712,13 +1824,29 @@ const App = () => {
   const idleRef = useRef(null);
   const exitRef = useRef({count:0,last:0});
 
+  /* Keyboard shortcuts — barista mode only, ignores inputs */
+  useEffect(()=>{
+    if(data.appMode!=='barista') return;
+    const fn=e=>{
+      const tag=document.activeElement?.tagName;
+      if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
+      if(e.key==='q') setBaristaView('queue');
+      if(e.key==='n') setBaristaView('add');
+      if(e.key==='h') setBaristaView('history');
+      if(e.key==='s'&&!e.shiftKey) setBaristaView('stats');
+    };
+    window.addEventListener('keydown',fn);
+    return()=>window.removeEventListener('keydown',fn);
+  },[data.appMode]);
+
   /* New order chime + document title update */
   const prevLen = useRef(-1);
   useEffect(()=>{
     // Update browser tab title with queue count
     if (data.appMode === 'barista') {
       const evtName=data.settings.eventName||'Nebulous Coffee';
-      document.title = data.orders.length>0 ? `(${data.orders.length}) ${evtName}` : evtName;
+      const pendingN=data.orders.filter(o=>!o.ready).length;
+      document.title = pendingN>0 ? `(${pendingN}) ${evtName}` : evtName;
     } else {
       document.title = data.settings.eventName||'Nebulous Coffee';
     }
@@ -1769,7 +1897,7 @@ const App = () => {
   /* Barista handlers */
   const handleComplete=order=>{ data.completeOrder(order); clearTimeout(undoRef.current); setUndoOrder(order); undoRef.current=setTimeout(()=>setUndoOrder(null),DEFAULTS.UNDO_MS); };
   const handleUndo=()=>{ if(undoOrder){data.undoComplete(undoOrder);setUndoOrder(null);clearTimeout(undoRef.current);} };
-  const handleReady=useCallback(order=>{data.markReady(order);data.playReadyChime();},[data]);
+  const handleReady=useCallback(order=>{data.markReady(order);data.playReadyChime();},[data.markReady,data.playReadyChime]);
   const handleEndShift=()=>{ data.endShift(); setShowShiftModal(false); };
   const handleClearHistory=()=>{ data.clearHistory(); setShowClearModal(false); };
 
@@ -1804,12 +1932,12 @@ const App = () => {
       {/* ═══ BARISTA MODE ═══ */}
       {data.appMode==='barista'&&(
         <div className="max-w-4xl mx-auto p-4 md:p-6 min-h-screen">
-          <BaristaNav view={baristaView} setView={v=>{setBaristaView(v);window.scrollTo({top:0,behavior:'smooth'});}} queueCount={data.orders.length} online={data.online}/>
+          <BaristaNav view={baristaView} setView={v=>{setBaristaView(v);window.scrollTo({top:0,behavior:'smooth'});}} queueCount={data.orders.filter(o=>!o.ready).length} online={data.online} paused={data.pause.active}/>
 
-          {baristaView==='queue'&&<QueueView orders={data.orders} settings={data.settings} milks={data.milks} estWait={data.estWait} onReady={handleReady} onComplete={handleComplete} onNote={data.addNote} onEdit={(o,p)=>data.updateOrder(o,p)}/>}
-          {baristaView==='add'&&<QuickAddView menu={data.menu} milks={data.milks} onPlace={data.placeOrder}/>}
-          {baristaView==='history'&&<HistoryView history={data.history} onClear={()=>setShowClearModal(true)}/>}
-          {baristaView==='stats'&&<StatsView shift={data.shift} shiftStats={data.shiftStats} settings={data.settings} onStartShift={data.startShift} onEndShiftRequest={()=>setShowShiftModal(true)} exportCSV={data.exportCSV} onGenerateSummaryCard={handleSummaryCard}/>}
+          {baristaView==='queue'&&<QueueView orders={data.orders} settings={data.settings} milks={data.milks} estWait={data.estWait} shiftActive={data.shift.active} onReady={handleReady} onComplete={handleComplete} onNote={data.addNote} onEdit={(o,p)=>data.updateOrder(o,p)}/>}
+          {baristaView==='add'&&<QuickAddView menu={data.menu} milks={data.milks} onPlace={data.placeOrder} accentColor={data.settings.accentColor}/>}
+          {baristaView==='history'&&<HistoryView history={data.history} onClear={()=>setShowClearModal(true)} onSaveNote={data.addHistoryNote} onRequeue={o=>{ data.placeOrder({customer:o.customer,flavor:o.flavor,price:o.price||0,temp:o.temp,milk:o.milk,note:o.note||''}); setBaristaView('queue'); }}/>}
+          {baristaView==='stats'&&<StatsView shift={data.shift} shiftStats={data.shiftStats} settings={data.settings} onStartShift={data.startShift} onEndShiftRequest={()=>setShowShiftModal(true)} exportCSV={data.exportCSV} onGenerateSummaryCard={handleSummaryCard} queueDepth={data.orders.filter(o=>!o.ready).length}/>}
           {baristaView==='settings'&&(
             <div className="space-y-5">
               <ChecklistView settings={data.settings} shift={data.shift} menu={data.menu} milks={data.milks}/>
@@ -1822,11 +1950,11 @@ const App = () => {
                 onToggleMilkSoldOut={data.toggleMilkSoldOut} onMoveMilkUp={data.moveMilkUp} onMoveMilkDown={data.moveMilkDown}
                 onResetSoldOut={data.resetSoldOut} onUpdateSettings={data.updateSettings}
                 onLaunchKiosk={()=>data.switchMode('kiosk')} onSetPause={data.setPause} onClearPause={data.clearPause}
-                onTestSound={data.testSound}/>
+                onTestSound={data.testSound} onClearHistory={()=>{ data.clearHistory(); }}/>
             </div>
           )}
 
-          {showShiftModal&&<ShiftEndModal stats={data.shiftStats} onConfirm={handleEndShift} onCancel={()=>setShowShiftModal(false)}/>}
+          {showShiftModal&&<ShiftEndModal stats={data.shiftStats} activeOrders={data.orders.filter(o=>!o.ready).length} onConfirm={handleEndShift} onCancel={()=>setShowShiftModal(false)}/>}
           {showClearModal&&<ClearHistoryModal onConfirm={handleClearHistory} onCancel={()=>setShowClearModal(false)}/>}
           {undoOrder&&<UndoToast order={undoOrder} onUndo={handleUndo}/>}
         </div>
@@ -1840,7 +1968,7 @@ const App = () => {
             <AttractScreen eventName={data.settings.eventName} tagline={data.settings.tagline} accent={data.settings.accentColor} onTap={()=>{setShowAttract(false);resetIdle();}}/>
           )}
           {!pendingOrder&&!data.pause.active&&!successData&&(
-            <KioskMenuView menu={data.menu} customerName={customerName} queueCount={data.orders.length} settings={data.settings} estWait={data.estWait} onNameChange={setCustomerName} onSelectDrink={handleSelectDrink} onExitTap={handleExitTap}/>
+            <KioskMenuView menu={data.menu} customerName={customerName} queueCount={data.orders.filter(o=>!o.ready).length} settings={data.settings} estWait={data.estWait} onNameChange={setCustomerName} onSelectDrink={handleSelectDrink} onExitTap={handleExitTap}/>
           )}
           {pendingOrder&&!data.pause.active&&(
             <MilkSelectView pendingOrder={pendingOrder} milks={data.milks} selectedMilk={selectedMilk} specialRequest={specialRequest} onSelectMilk={setSelectedMilk} onSpecialRequest={setSpecialRequest} onConfirm={handleConfirmOrder} onCancel={handleCancelOrder} settings={data.settings}/>
