@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f0f0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <title>Nebulous Coffee</title>
 
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -379,15 +383,15 @@ const useAppData = () => {
       if(o.temp==='HOT') hotCount++; else icedCount++;
     });
     const kd=Object.keys(drinkCounts), kh=Object.keys(hourCounts);
-    const topDrink    = kd.length ? kd.reduce((a,b)=>drinkCounts[a]>drinkCounts[b]?a:b) : 'N/A';
-    const avgWait     = rows.length ? (totalWait/rows.length).toFixed(1) : '0';
+    const topDrink    = kd.length ? kd.reduce((a,b)=>drinkCounts[a]>drinkCounts[b]?a:b) : '—';
+    const avgWait     = rows.length ? (totalWait/rows.length).toFixed(1) : '—';
     const peakH       = kh.length  ? kh.reduce((a,b)=>hourCounts[a]>hourCounts[b]?a:b) : null;
-    const busiestHour = peakH!==null ? `${Number(peakH)%12||12}${Number(peakH)>=12?'PM':'AM'}` : 'N/A';
+    const busiestHour = peakH!==null ? `${Number(peakH)%12||12}${Number(peakH)>=12?'PM':'AM'}` : '—';
     const durationMs  = shift.active ? Date.now()-shift.startTime : 0;
     const durationStr = durationMs > 0
       ? `${Math.floor(durationMs/3600000)}h ${Math.floor((durationMs%3600000)/60000)}m` : '—';
     const durationHrs = durationMs / 3600000;
-    const perHour     = durationHrs > 0 ? (rows.length / durationHrs).toFixed(1) : '—';
+    const perHour     = (rows.length > 0 && durationHrs > 0) ? (rows.length / durationHrs).toFixed(1) : '—';
     const avgRevenue  = rows.length > 0 ? (revenue / rows.length).toFixed(2) : '0.00';
     return {revenue,topDrink,count:rows.length,avgWait,busiestHour,
             drinkCounts,hourCounts,hotCount,icedCount,durationStr,perHour,avgRevenue};
@@ -411,9 +415,7 @@ const useAppData = () => {
   }, [orders.length, shiftStats.count, shift]);
 
   const exportCSV = useCallback(frame => {
-    if (frame==='shift' && shift.startTime===0) {
-      alert('No active shift — start a shift before exporting shift data.'); return;
-    }
+    if (frame==='shift' && shift.startTime===0) return;  // button is visually disabled already
     const now=Date.now();
     const cuts={shift:shift.startTime,'24h':now-86400000,week:now-604800000,month:now-2592000000};
     const rows=history.filter(o=>o.completedAt>(cuts[frame]||0));
@@ -637,8 +639,8 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins}) =
   const LATE = lateMins || DEFAULTS.LATE_MINS;
   const [showNote,setShowNote] = useState(false);
   const [noteVal, setNoteVal]  = useState(order.baristaNote||'');
-  /* Sync note input if baristaNote is updated from another device */
-  useEffect(()=>{ setNoteVal(order.baristaNote||''); },[order.baristaNote]);
+  /* Sync note input only when not actively editing (avoids clobbering in-progress input) */
+  useEffect(()=>{ if(!showNote) setNoteVal(order.baristaNote||''); },[order.baristaNote, showNote]);
   const [showEdit,setShowEdit] = useState(false);
   const [mounted, setMounted]  = useState(false);
   useEffect(()=>{ const id=setTimeout(()=>setMounted(true),10); return()=>clearTimeout(id); },[]);
@@ -767,7 +769,7 @@ const QueueView = ({orders,settings,onReady,onComplete,onNote,onEdit,estWait}) =
         <div>
           <p className="text-[9px] font-bold uppercase tracking-widest mb-2 px-1" style={{color:settings.accentColor||'#22c55e'}}>✓ READY FOR PICKUP</p>
           {ready.map(o=><QueueCard key={o._key} order={o} warnMins={warnMins} lateMins={lateMins} onReady={onReady} onComplete={onComplete} onNote={onNote} onEdit={onEdit}/>)}
-          {pending.length>0&&<div className="border-t my-3" style={{borderColor:'var(--border)'}}/>}
+          {ready.length>0&&pending.length>0&&<div className="border-t my-3" style={{borderColor:'var(--border)'}}/>}
         </div>
       )}
       {pending.map(o=><QueueCard key={o._key} order={o} warnMins={warnMins} lateMins={lateMins} onReady={onReady} onComplete={onComplete} onNote={onNote} onEdit={onEdit}/>)}
@@ -779,7 +781,13 @@ const QueueView = ({orders,settings,onReady,onComplete,onNote,onEdit,estWait}) =
 const HistoryView = ({history,onClear}) => {
   const [page,setPage]=useState(1);
   const [q,setQ]=useState('');
+  const searchRef=useRef(null);
   useEffect(()=>{ setPage(1); },[history.length]);
+  useEffect(()=>{
+    const fn=e=>{ if(e.key==='/'&&document.activeElement!==searchRef.current){e.preventDefault();searchRef.current?.focus();} };
+    window.addEventListener('keydown',fn);
+    return()=>window.removeEventListener('keydown',fn);
+  },[]);
   const filtered = useMemo(()=> q.trim()
     ? history.filter(o=>
         o.customer?.toLowerCase().includes(q.toLowerCase())||
@@ -817,7 +825,7 @@ const HistoryView = ({history,onClear}) => {
       </div>
       <div className="relative mb-5">
         <input value={q} onChange={e=>{setQ(e.target.value);setPage(1);}}
-          placeholder="Search by name or drink…"
+          ref={searchRef} placeholder="Search by name, drink, milk, or note…"
           className="w-full px-5 py-3 rounded-2xl text-sm font-medium outline-none border pr-10"
           style={S.inp}/>
         {q&&<button onClick={()=>{setQ('');setPage(1);}}
@@ -955,7 +963,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
             {drinks.length>0&&(
               <div className="py-5 border-t space-y-2" style={{borderColor:'var(--border)'}}>
                 <p className="text-[9px] font-bold uppercase tracking-widest mb-3" style={S.faint}>Drinks This Shift</p>
-                {drinks.map(d=><MiniBar key={d.name} label={d.name} value={d.count} max={Math.max(1,...drinks.map(x=>x.count))} color="#22c55e"/>)}
+                {drinks.map(d=><MiniBar key={d.name} label={d.name} value={d.count} max={Math.max(1,...drinks.map(x=>x.count))} color={settings.accentColor||'#22c55e'}/>)}
               </div>
             )}
             {hours.length>0&&(
@@ -1132,7 +1140,10 @@ const SettingsView = ({
 
       {/* Event Config */}
       <div className={card} style={S.surf}>
-        <h3 className="display text-2xl mb-5" style={S.ink}>EVENT CONFIG</h3>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="display text-2xl" style={S.ink}>EVENT CONFIG</h3>
+          <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${shift.active?'bg-emerald-50 text-emerald-600':''}`} style={shift.active?{}:{...S.surf2,color:'var(--ink-faint)'}}>{shift.active?'● Shift Active':'○ No Shift'}</span>
+        </div>
         <div className="space-y-4">
           <div>
             <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Kiosk Display Name</label>
@@ -1226,7 +1237,7 @@ const SettingsView = ({
               <p className="text-[9px] font-bold uppercase tracking-widest text-center break-all" style={S.faint}>{window.location.href}</p>
               <button onClick={handleCopy}
                 className="text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full flex-shrink-0 transition-all"
-                style={copied?{background:'#22c55e',color:'#fff'}:{...S.surf2,...S.mid}}>
+                style={copied?{background:settings.accentColor||'#22c55e',color:'#fff'}:{...S.surf2,...S.mid}}>
                 {copied?'✓ Copied':'Copy'}</button>
             </div>
           </div>
@@ -1507,6 +1518,8 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
 };
 
 const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelectMilk,onSpecialRequest,onConfirm,onCancel,settings}) => {
+  const [submitting,setSubmitting] = useState(false);
+  const handleConfirm = ()=>{ if(submitting) return; setSubmitting(true); try{navigator.vibrate&&navigator.vibrate(50);}catch(_){} onConfirm(); };
   const c       = kc(settings.kioskDark);
   const dark    = settings.kioskDark;
   const available = milks.filter(m=>!m.soldOut);
@@ -1577,7 +1590,7 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
               <p className="display text-5xl mb-6" style={{color:c.ink}}>
                 {Number(pendingOrder.price)===0 ? 'FREE' : `TOTAL: ${fmtPrice(pendingOrder.price)}`}
               </p>
-              <button onClick={()=>{try{navigator.vibrate&&navigator.vibrate(50);}catch(_){} onConfirm();}}
+              <button onClick={handleConfirm} disabled={submitting}
                 className="w-full btn-confirm text-white py-8 rounded-[2.5rem] display text-4xl"
                 style={{background:`linear-gradient(160deg,${settings.accentColor||'#22c55e'},${settings.accentColor||'#22c55e'}bb)`,
                         boxShadow:`0 12px 40px -4px ${settings.accentColor||'#22c55e'}66`,
@@ -1678,6 +1691,7 @@ const App = () => {
   const [successData,    setSuccessData]    = useState(null);
   const [showAttract,    setShowAttract]    = useState(false);
   const [showPinPad,     setShowPinPad]     = useState(false);
+  const [orderError,     setOrderError]     = useState(null);
   const idleRef = useRef(null);
   const exitRef = useRef({count:0,last:0});
 
@@ -1720,8 +1734,9 @@ const App = () => {
       setPendingOrder(null);setSelectedMilk(null);setSpecialRequest('');setCustomerName('');
       setTimeout(()=>setSuccessData(null),DEFAULTS.SUCCESS_MS);
     } catch(e) {
-      // If Firebase fails, return to menu so customer can try again
       console.error('Order placement failed:', e);
+      setOrderError('Something went wrong — please try again.');
+      setTimeout(()=>setOrderError(null), 4000);
       setPendingOrder(null);setSelectedMilk(null);setSpecialRequest('');
     }
   };
@@ -1745,7 +1760,7 @@ const App = () => {
   const handleSummaryCard=useCallback(()=>{
     const s=data.shiftStats,name=data.settings.eventName||DEFAULTS.APP_NAME;
     const date=new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-    const cells=[['Drinks Served',s.count],['Revenue',`$${s.revenue.toFixed(2)}`],['Top Drink',s.topDrink],['Avg Wait',`${s.avgWait}m`],['Peak Hour',s.busiestHour]];
+    const cells=[['Drinks Served',s.count],['Revenue',`$${s.revenue.toFixed(2)}`],['Top Drink',s.topDrink],['Avg Wait',s.avgWait==='—'?'—':`${s.avgWait}m`],['Peak Hour',s.busiestHour]];
     const card=document.getElementById('share-card');
     card.innerHTML=`<div style="background:#0c0c0c;color:#f0f0f0;padding:56px;font-family:'DM Sans',sans-serif;border-radius:24px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:68px;letter-spacing:.04em;line-height:1;margin-bottom:4px;">${name}</div>
@@ -1812,6 +1827,11 @@ const App = () => {
           )}
           {pendingOrder&&!data.pause.active&&(
             <MilkSelectView pendingOrder={pendingOrder} milks={data.milks} selectedMilk={selectedMilk} specialRequest={specialRequest} onSelectMilk={setSelectedMilk} onSpecialRequest={setSpecialRequest} onConfirm={handleConfirmOrder} onCancel={handleCancelOrder} settings={data.settings}/>
+          )}
+          {orderError&&(
+            <div className="fixed bottom-8 left-1/2 z-[900] animate-in" style={{transform:'translateX(-50%)',maxWidth:'90vw'}}>
+              <div className="bg-red-500 text-white px-6 py-4 rounded-2xl text-sm font-bold shadow-lift text-center">⚠️ {orderError}</div>
+            </div>
           )}
           {successData&&<SuccessScreen {...successData} settings={data.settings}/>}
           {showPinPad&&<PinPad correctPin={data.settings.pin||DEFAULTS.DEFAULT_PIN} onSuccess={handlePinSuccess} onCancel={()=>setShowPinPad(false)}/>}
