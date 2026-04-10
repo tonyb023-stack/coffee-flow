@@ -436,7 +436,7 @@ const useAppData = () => {
     let csv='Order#,Customer,Flavor,Temp,Milk,Special Request,Price,Wait,Barista Note,Date\n';
     rows.forEach(o=>{
       csv+=[o.orderNumber||'',esc(o.customer),esc(o.flavor),o.temp,esc(o.milk),
-            esc(o.note),o.price,o.waitTime===0?'<1m':`${o.waitTime}m`,esc(o.baristaNote),
+            esc(o.note),o.price,fmtMins(o.waitTime),esc(o.baristaNote),
             new Date(o.completedAt).toISOString()].join(',')+'\n';
     });
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
@@ -543,6 +543,17 @@ const fmtPrice = p => Number(p) === 0 ? 'FREE' : `$${Number(p).toFixed(2)}`;
 
 /* Time formatter — h:mm AM/PM */
 const fmtTime = ts => ts ? new Date(ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}) : '—';
+
+/* Minutes formatter — converts a minute value (int or decimal string) to
+   human-readable form: < 1m | 5m | 1h 3m | 2h. Used for all wait times. */
+const fmtMins = m => {
+  const n = parseFloat(m);
+  if (m === '—' || isNaN(n)) return '—';
+  if (n < 1)   return '< 1m';
+  if (n < 60)  return `${Math.round(n * 10) / 10}m`;
+  const h = Math.floor(n / 60), rem = Math.round(n % 60);
+  return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
+};
 
 const ConnectionDot = ({online}) => (
   <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -840,7 +851,7 @@ const HistoryDetailModal = ({order,onClose,onRequeue,onSaveNote}) => {
         </div>
       </div>
       <div className="flex justify-between items-center mt-4 pt-4 border-t" style={{borderColor:'var(--border)'}}>
-        <span className="text-xs font-bold" style={S.faint}>Wait: {order.waitTime===0?'<1':order.waitTime}m{Number(order.price)>0?` · ${fmtPrice(order.price)}`:''}</span>
+        <span className="text-xs font-bold" style={S.faint}>Wait: {fmtMins(order.waitTime)}{Number(order.price)>0?` · ${fmtPrice(order.price)}`:''}</span>
       </div>
     </div>
     <div className="flex gap-3 mt-5">
@@ -927,7 +938,7 @@ const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
       <div className="space-y-5">
         {grouped.map(group=>(
           <div key={group.label}>
-            <p className="text-[9px] font-black uppercase tracking-widest mb-2 px-1" style={S.faint}>{group.label}</p>
+            <p className="text-[9px] font-black uppercase tracking-widest mb-2 px-1" style={S.faint}>{group.label} <span className="opacity-50">({group.items.length})</span></p>
             <div className="space-y-2">
               {group.items.map(o=>(
                 <div key={o._key||o.orderNumber} onClick={()=>setDetail(o)} className="flex justify-between items-start p-4 rounded-2xl border gap-3 cursor-pointer hover:opacity-80 transition-all" style={S.surf2}>
@@ -944,7 +955,7 @@ const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
                     {o.baristaNote&&<p className="inline-block text-[10px] font-medium mt-1 px-2 py-0.5 rounded-full" style={{...S.surf,border:'1px solid var(--border)',color:'var(--ink-mid)'}}>📝 {o.baristaNote}</p>}
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <span className="display text-xl" style={S.ink}>{o.waitTime===0?'<1':o.waitTime}m</span>
+                    <span className="display text-xl" style={S.ink}>{fmtMins(o.waitTime)}</span>
                     <p className="text-[8px] font-bold uppercase tracking-widest" style={S.faint}>WAIT</p>
                     {Number(o.price)>0&&<p className="text-[9px] font-bold mt-0.5" style={S.faint}>{fmtPrice(o.price)}</p>}
                   </div>
@@ -964,7 +975,7 @@ const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
 const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exportCSV,onGenerateSummaryCard,queueDepth}) => {
   const pct   = settings.guestCount>0 ? Math.min(100,Math.round((shiftStats.count/settings.guestCount)*100)) : null;
   const noData= shiftStats.count===0 && shift.startTime===0;
-  const hours = Object.entries(shiftStats.hourCounts||{}).map(([h,c])=>({label:`${h%12||12}${Number(h)>=12?'p':'a'}`,count:c})).sort((a,b)=>parseInt(a.label)-parseInt(b.label));
+  const hours = Object.entries(shiftStats.hourCounts||{}).map(([h,c])=>({h:Number(h),label:`${Number(h)%12||12}${Number(h)>=12?'p':'a'}`,count:c})).sort((a,b)=>a.h-b.h);
   const drinks= Object.entries(shiftStats.drinkCounts||{}).map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count).slice(0,6);
 
   /* Live duration ticker — updates every minute while shift is active */
@@ -986,7 +997,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
   const cells = [
     {label:'Revenue',    val:shiftStats.count>0?`$${shiftStats.revenue.toFixed(2)}`:'—'},
     {label:'Top Drink',  val:shiftStats.topDrink,   italic:true},
-    {label:'Avg Wait',   val:shiftStats.avgWait==='—'?'—':`${shiftStats.avgWait}m`+(shiftStats.minWait!==null&&shiftStats.maxWait!==null&&shiftStats.count>1?` (${shiftStats.minWait===0?'<1':shiftStats.minWait}–${shiftStats.maxWait}m)`:'')},
+    {label:'Avg Wait',   val:fmtMins(shiftStats.avgWait)+(shiftStats.minWait!==null&&shiftStats.maxWait!==null&&shiftStats.count>1?` (${fmtMins(shiftStats.minWait)}–${fmtMins(shiftStats.maxWait)})`:'')},
     {label:'Peak Hour',  val:shiftStats.busiestHour, italic:true},
     {label:'Drinks/Hr',  val:shiftStats.perHour},
     {label:'Avg Price',  val:(shiftStats.avgRevenue&&shiftStats.avgRevenue!=='—'&&shiftStats.count>0)?`$${shiftStats.avgRevenue}`:'—'},
@@ -1051,7 +1062,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
                 <div key={label} className="text-center">
                   <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={S.faint}>{label}</p>
                   <p className={`font-black leading-tight ${italic?'italic':''}`}
-                     style={{...S.ink, fontSize:'clamp(.85rem,2.5vw,1.125rem)'}}>{val}</p>
+                     style={{...S.ink, fontSize:label==='Avg Wait'&&val.length>6?'clamp(.7rem,2vw,.9rem)':'clamp(.85rem,2.5vw,1.125rem)'}}>{val}</p>
                 </div>
               ))}
             </div>
@@ -1091,9 +1102,11 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
   const [note,setNote]=useState(''); const [placed,setPlaced]=useState(false);
   const [orderNum,setOrderNum]=useState(null);
   const timerRef=useRef(null);
-  const reset=()=>{setDrink(null);setTemp(null);setMilk(null);setNote('');setName('');};
+  const [submitting,setSubmitting]=useState(false);
+  const reset=()=>{setDrink(null);setTemp(null);setMilk(null);setNote('');setName('');setSubmitting(false);};
   useEffect(()=>()=>{clearTimeout(timerRef.current);},[]);
   const confirm=async()=>{
+    if(submitting) return; setSubmitting(true);
     const rawWU=name.trim(); const fmtWU=rawWU?rawWU.replace(/\b\w/g,c=>c.toUpperCase()):'Walk-up';
     const num=await onPlace({customer:fmtWU,flavor:drink.name,price:drink.price||0,temp,milk,note:note.trim()});
     setOrderNum(num); setPlaced(true);
@@ -1106,6 +1119,7 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
       {orderNum&&<p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={S.faint}>Order #{orderNum}</p>}
       <p className="display text-3xl" style={S.ink}>ORDER PLACED</p>
       {drink&&<p className="text-sm font-bold mt-1" style={S.mid}>{drink.name} · {temp} · {milk}</p>}
+      <button onClick={()=>{clearTimeout(timerRef.current);setPlaced(false);setOrderNum(null);reset();}} className="mt-5 px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-70" style={{...S.surf2,...S.mid}}>+ Place Another</button>
     </div>
   );
   return (
@@ -1146,8 +1160,8 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
       </div>}
       {milk&&<div className="animate-in space-y-3">
         <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Special request (optional)" className="w-full px-5 py-3.5 rounded-2xl text-sm font-medium outline-none border" style={S.inp} onKeyDown={e=>{if(e.key==='Enter'&&drink&&temp&&milk)confirm();}}/>
-        <button onClick={confirm} className="w-full btn-confirm text-white py-4 rounded-2xl font-black text-base uppercase tracking-widest">
-          Place Order — {fmtPrice(drink.price)}
+        <button onClick={confirm} disabled={submitting} className="w-full btn-confirm text-white py-4 rounded-2xl font-black text-base uppercase tracking-widest" style={submitting?{opacity:.6,cursor:'not-allowed'}:{}}>
+          {submitting?'PLACING…':`Place Order — ${fmtPrice(drink.price)}`}
         </button>
       </div>}
       {(drink||temp||milk)&&<button onClick={reset} className="w-full mt-3 py-2 text-[10px] font-bold uppercase tracking-widest" style={S.faint}>Clear</button>}
@@ -1467,14 +1481,14 @@ const SettingsView = ({
   );
 };
 
-const ShiftEndModal=({stats,onConfirm,onCancel,activeOrders=0})=>(
+const ShiftEndModal=({stats,onConfirm,onCancel,activeOrders=0,shiftStats})=>(
   <Modal onClose={onCancel}>
     <h2 className="display text-4xl mb-2" style={S.ink}>END SHIFT?</h2>
     {activeOrders>0&&<div className="mb-4 px-4 py-3 rounded-2xl text-sm font-bold text-center" style={{background:'rgba(245,158,11,.12)',color:'#d97706'}}>⚠️ {activeOrders} order{activeOrders!==1?'s':''} still in queue</div>}
     <div className="py-5 my-5 border-t border-b space-y-2" style={{borderColor:'var(--border)'}}>
       <p className="text-sm font-bold" style={S.mid}>🍵 {stats.count} drinks{(stats.hotCount||0)>0?` · 🔥${stats.hotCount||0} hot / 🧊${stats.icedCount||0} iced`:''}</p>
       <p className="text-sm font-bold" style={S.mid}>💵 ${stats.revenue.toFixed(2)} revenue</p>
-      <p className="text-sm font-bold" style={S.mid}>⏱ {stats.avgWait==='—'?'—':`${stats.avgWait}m`} avg wait</p>
+      <p className="text-sm font-bold" style={S.mid}>⏱ {fmtMins(stats.avgWait)}{stats.minWait!==null&&stats.maxWait!==null&&stats.count>1?` (${fmtMins(stats.minWait)}–${fmtMins(stats.maxWait)})`:''} avg wait</p>
       {stats.perHour&&stats.perHour!=='—'&&<p className="text-sm font-bold" style={S.mid}>⚡ {stats.perHour} drinks/hr</p>}
       {stats.avgRevenue&&stats.avgRevenue!=='—'&&stats.count>0&&<p className="text-sm font-bold" style={S.mid}>💰 ${stats.avgRevenue} avg per drink</p>}
       {stats.durationStr&&stats.durationStr!=='—'&&<p className="text-sm font-bold" style={S.mid}>🕐 {stats.durationStr} shift duration</p>}
@@ -1678,8 +1692,8 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
   const c       = kc(settings.kioskDark);
   const dark    = settings.kioskDark;
   const available = milks.filter(m=>!m.soldOut);
-  /* Auto-select the only milk on mount — skips the milk step for single-milk events */
-  useEffect(()=>{ if(available.length===1&&!selectedMilk) onSelectMilk(available[0].name); },[]);
+  /* Auto-select when exactly one milk is available (single-milk events skip the milk screen) */
+  useEffect(()=>{ if(available.length===1&&!selectedMilk) onSelectMilk(available[0].name); },[available.length]);
   const chips     = (settings.customChips||'').trim() ? settings.customChips.split(',').map(s=>s.trim()).filter(Boolean) : DEFAULTS.QUICK_REQUESTS;
   const active    = specialRequest?specialRequest.split(', ').filter(Boolean):[];
   const toggle    = chip=>{ const n=active.includes(chip)?active.filter(x=>x!==chip):[...active,chip]; onSpecialRequest(n.join(', ')); };
@@ -1941,7 +1955,7 @@ const App = () => {
   const handleSummaryCard=useCallback(()=>{
     const s=data.shiftStats,name=data.settings.eventName||DEFAULTS.APP_NAME;
     const date=new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-    const cells=[['Drinks Served',s.count],['Revenue',`$${s.revenue.toFixed(2)}`],['Top Drink',s.topDrink],['Avg Wait',s.avgWait==='—'?'—':`${s.avgWait}m`],['Peak Hour',s.busiestHour]];
+    const cells=[['Drinks Served',s.count],['Revenue',`$${s.revenue.toFixed(2)}`],['Top Drink',s.topDrink],['Avg Wait',fmtMins(s.avgWait)],['Peak Hour',s.busiestHour]];
     const card=document.getElementById('share-card');
     card.innerHTML=`<div style="background:#0c0c0c;color:#f0f0f0;padding:56px;font-family:'DM Sans',sans-serif;border-radius:24px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:68px;letter-spacing:.04em;line-height:1;margin-bottom:4px;">${name}</div>
@@ -1990,7 +2004,7 @@ const App = () => {
             </div>
           )}
 
-          {showShiftModal&&<ShiftEndModal stats={data.shiftStats} activeOrders={data.orders.filter(o=>!o.ready).length} onConfirm={handleEndShift} onCancel={()=>setShowShiftModal(false)}/>}
+          {showShiftModal&&<ShiftEndModal stats={data.shiftStats} shiftStats={data.shiftStats} activeOrders={data.orders.filter(o=>!o.ready).length} onConfirm={handleEndShift} onCancel={()=>setShowShiftModal(false)}/>}
           {showClearModal&&<ClearHistoryModal onConfirm={handleClearHistory} onCancel={()=>setShowClearModal(false)}/>}
           {undoOrder&&<UndoToast order={undoOrder} onUndo={handleUndo}/>}
         </div>
