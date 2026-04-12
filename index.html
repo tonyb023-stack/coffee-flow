@@ -71,6 +71,22 @@
     @keyframes confirmGlow { 0%,100%{opacity:1} 50%{opacity:.82} }
     @keyframes successItem { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 
+    /* ── Kiosk premium animations ───────────── */
+    @keyframes floatY      { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+    @keyframes ringPulse   { 0%{transform:scale(1);opacity:.55} 100%{transform:scale(2.8);opacity:0} }
+    @keyframes shimmerX    { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+    @keyframes burstRing   { 0%{transform:scale(.5);opacity:.65} 100%{transform:scale(3.8);opacity:0} }
+    @keyframes milkIn      { from{opacity:0;transform:translateY(20px) scale(.95)} to{opacity:1;transform:translateY(0) scale(1)} }
+    @keyframes greetIn     { from{opacity:0;transform:translateY(-8px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+    @keyframes kioskSlide  { from{opacity:0;transform:translateX(36px)} to{opacity:1;transform:translateX(0)} }
+    @keyframes breatheGlow { 0%,100%{opacity:.07} 50%{opacity:.18} }
+    @keyframes tapBounce   { 0%,100%{transform:translateY(0)} 40%{transform:translateY(-4px)} 70%{transform:translateY(2px)} }
+    @keyframes chipPop     { 0%{transform:scale(.88)} 60%{transform:scale(1.08)} 100%{transform:scale(1)} }
+
+    .kiosk-float  { animation:floatY 6.5s ease-in-out infinite; }
+    .kiosk-tap    { animation:tapBounce 2.8s ease-in-out infinite; }
+    .kiosk-slide  { animation:kioskSlide .42s cubic-bezier(.16,1,.3,1) forwards; }
+
     .animate-in    { animation: slideUp  .4s cubic-bezier(.16,1,.3,1) forwards; }
     .animate-pop   { animation: popIn   .35s cubic-bezier(.16,1,.3,1) forwards; }
     .animate-shake { animation: shake    .4s ease forwards; }
@@ -1550,29 +1566,49 @@ const kc = (dark) => ({
 
 const AttractScreen = ({eventName,tagline,accent,onTap}) => {
   const raw=accent||'#22c55e'; const a=raw.length===4?`#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`:raw; const r=parseInt(a.slice(1,3),16),g=parseInt(a.slice(3,5),16),b=parseInt(a.slice(5,7),16);
-  const bg=`radial-gradient(ellipse at 50% 55%,rgba(${r},${g},${b},.18) 0%,transparent 65%),radial-gradient(ellipse at 15% 15%,rgba(${r},${g},${b},.08) 0%,transparent 55%),#0c0c0c`;
+  const bg=`radial-gradient(ellipse at 50% 55%,rgba(${r},${g},${b},.18) 0%,transparent 65%),radial-gradient(ellipse at 15% 15%,rgba(${r},${g},${b},.08) 0%,transparent 55%),radial-gradient(ellipse at 80% 85%,rgba(${r},${g},${b},.06) 0%,transparent 50%),#0c0c0c`;
   return (
   <div className="kiosk-grain fixed inset-0 z-[300] flex flex-col items-center justify-center cursor-pointer select-none" style={{background:bg}} onClick={onTap}>
-    <h1 className="display text-white text-center px-8 mb-3"
-        style={{fontSize:'clamp(2.5rem,13vw,10rem)',letterSpacing:'-.01em',lineHeight:1}}>
+    {/* Ambient breathe glow */}
+    <div style={{position:'absolute',width:'60vw',height:'60vw',borderRadius:'50%',background:`rgba(${r},${g},${b},1)`,filter:'blur(120px)',animation:'breatheGlow 4s ease-in-out infinite',pointerEvents:'none'}}/>
+    <h1 className="kiosk-float display text-white text-center px-8 mb-3 relative"
+        style={{fontSize:'clamp(2.5rem,13vw,10rem)',letterSpacing:'-.01em',lineHeight:1,textShadow:`0 0 80px rgba(${r},${g},${b},.3)`}}>
       {eventName||DEFAULTS.APP_NAME}
     </h1>
-    <p className="text-white/40 font-bold uppercase tracking-[.3em] text-sm mb-16 px-8 text-center">
+    <p className="text-white/40 font-bold uppercase tracking-[.3em] text-sm mb-16 px-8 text-center relative"
+       style={{animation:'successItem .6s .3s both',opacity:0}}>
       {tagline||DEFAULTS.TAGLINE}
     </p>
-    <div className="flex items-center gap-2.5 border border-white/10 rounded-full px-6 py-3">
-      <span className="w-2 h-2 rounded-full animate-pulse" style={{background:accent||'#22c55e'}}/>
-      <span className="text-white/50 text-xs font-bold uppercase tracking-[.2em]">TAP ANYWHERE TO ORDER</span>
+    <div className="relative flex items-center gap-2.5 rounded-full px-6 py-3"
+         style={{border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.04)',backdropFilter:'blur(8px)'}}>
+      {/* Expanding ring */}
+      <div style={{position:'absolute',inset:0,borderRadius:'9999px',border:`1px solid rgba(${r},${g},${b},.7)`,animation:'ringPulse 2.4s ease-out infinite'}}/>
+      <span className="kiosk-tap w-2 h-2 rounded-full relative z-10" style={{background:accent||'#22c55e'}}/>
+      <span className="text-white/60 text-xs font-bold uppercase tracking-[.2em] relative z-10">TAP ANYWHERE TO ORDER</span>
     </div>
   </div>
 ); };
 
 const PauseScreen = ({message,onExitTap}) => (
-  <div className="pause-bg fixed inset-0 z-[290] flex flex-col items-center justify-center select-none">
+  <div className="pause-bg fixed inset-0 z-[290] flex flex-col items-center justify-center select-none overflow-hidden">
     <div onClick={onExitTap} style={{position:'fixed',top:0,right:0,width:120,height:120,zIndex:10000}}/>
-    <div className="text-6xl mb-6">⏸</div>
-    <h1 className="display text-6xl md:text-8xl text-white mb-4" style={{letterSpacing:'.04em'}}>BE RIGHT BACK</h1>
-    <p className="text-white/50 font-bold uppercase tracking-[.2em] text-base">{message||'Back soon!'}</p>
+    {/* Ambient amber orb */}
+    <div style={{position:'absolute',width:'70vw',height:'70vw',borderRadius:'50%',background:'rgba(245,158,11,.9)',filter:'blur(130px)',animation:'breatheGlow 3.5s ease-in-out infinite',pointerEvents:'none',opacity:.15}}/>
+    <div style={{position:'absolute',width:'40vw',height:'40vw',borderRadius:'50%',background:'rgba(251,191,36,.9)',filter:'blur(80px)',animation:'breatheGlow 2.8s 1s ease-in-out infinite',pointerEvents:'none',opacity:.1}}/>
+    <div className="relative text-center px-8 animate-in">
+      <div style={{fontSize:'4rem',marginBottom:'1.5rem',filter:'drop-shadow(0 0 24px rgba(245,158,11,.6))'}}>☕</div>
+      <h1 className="display text-white text-center mb-4"
+          style={{fontSize:'clamp(3rem,14vw,8rem)',letterSpacing:'.04em',textShadow:'0 2px 40px rgba(245,158,11,.25)'}}>
+        BE RIGHT BACK
+      </h1>
+      <p style={{color:'rgba(255,255,255,.5)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.25em',fontSize:'.9rem',marginBottom:'2rem'}}>
+        {message||'Back soon!'}
+      </p>
+      <div style={{display:'inline-flex',alignItems:'center',gap:'8px',padding:'10px 20px',borderRadius:'9999px',border:'1px solid rgba(245,158,11,.25)',background:'rgba(245,158,11,.08)'}}>
+        <div style={{width:'6px',height:'6px',borderRadius:'50%',background:'#f59e0b',animation:'softPulse 1.6s ease-in-out infinite'}}/>
+        <span style={{color:'rgba(245,158,11,.8)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.2em',fontSize:'.7rem'}}>We'll be back shortly</span>
+      </div>
+    </div>
   </div>
 );
 
@@ -1585,11 +1621,11 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
   return (
     <div className="kiosk-grain min-h-screen pb-28" style={{background:c.bg}}>
       <div onClick={onExitTap} style={{position:'fixed',top:0,right:0,width:120,height:120,zIndex:10000}}/>
-      {queueCount>0&&(
-        <div className="fixed top-4 left-4 z-[50] flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+      {isBusy&&(
+        <div className="fixed top-4 left-4 z-[50] flex items-center gap-1.5 px-3 py-1.5 rounded-full animate-in"
              style={{background:`${accent}22`,border:`1px solid ${accent}44`}}>
           <span className="w-1.5 h-1.5 rounded-full" style={{background:accent}}/>
-          <span className="text-[9px] font-black uppercase tracking-widest" style={{color:accent}}>{queueCount} in queue</span>
+          <span className="text-[9px] font-black uppercase tracking-widest" style={{color:accent}}>~ {estWait} min wait</span>
         </div>
       )}
 
@@ -1605,13 +1641,6 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
           </p>
         )}
       </div>
-
-      {isBusy&&(
-        <div className="mx-4 mb-6 px-5 py-3 rounded-2xl font-bold text-sm text-center text-white animate-in"
-             style={{background:`${accent}cc`}}>
-          It's busy right now — allow about {estWait} minutes for your order ☕
-        </div>
-      )}
 
       {/* Name field */}
       <div className="max-w-xl mx-auto px-4 mb-10">
@@ -1633,13 +1662,27 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
         </div>
       </div>
 
+      {/* Personal greeting when name entered */}
+      {customerName.trim()&&(
+        <div className="text-center mb-4 px-4" style={{animation:'greetIn .4s cubic-bezier(.16,1,.3,1) forwards'}}>
+          <p className="font-black uppercase tracking-[.18em] text-base" style={{color:accent}}>
+            Hi, {customerName.trim().replace(/\w/g,c=>c.toUpperCase())}! 👋
+          </p>
+          <p className="text-xs font-medium mt-0.5 uppercase tracking-widest" style={{color:c.inkFaint}}>Choose your drink below</p>
+        </div>
+      )}
+
       {/* Drink grid with staggered entrance */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto px-4">
         {menu.map((drink,i)=>(
           <div key={drink._key||drink.name}
-               className={`rounded-[2.5rem] shadow-card border p-6 flex flex-col justify-between ${drink.soldOut?'opacity-50':''}`}
+               className={`rounded-[2.5rem] shadow-card border p-6 flex flex-col justify-between ${drink.soldOut?'opacity-40 pointer-events-none':''}`}
                style={{background:c.surface,borderColor:c.border,
-                       animation:`slideUp .5s cubic-bezier(.16,1,.3,1) ${i*70}ms both`}}>
+                       animation:`slideUp .55s cubic-bezier(.16,1,.3,1) ${i*80}ms both`,
+                       transition:'transform .2s cubic-bezier(.16,1,.3,1), box-shadow .2s'}}
+               onMouseEnter={e=>{if(!drink.soldOut){e.currentTarget.style.transform='scale(1.015)';e.currentTarget.style.boxShadow='0 16px 48px rgba(0,0,0,.14),0 4px 16px rgba(0,0,0,.08)';}}}
+               onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='';}}
+               >
             <div className="flex justify-between items-start mb-5">
               <div className="flex-1 min-w-0">
                 {drink.featured&&(
@@ -1705,7 +1748,7 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
     : (dark?'rgba(59,130,246,.07)':'rgba(59,130,246,.05)');
 
   return (
-    <div className="kiosk-grain fixed inset-0 overflow-y-auto no-scroll" style={{background:c.bg}}>
+    <div className="kiosk-grain fixed inset-0 overflow-y-auto no-scroll kiosk-slide" style={{background:c.bg}}>
       <div className="max-w-xl mx-auto px-4 py-8 text-center">
         <button onClick={onCancel} className="inline-flex items-center gap-2 mb-8 font-bold text-sm hover:opacity-60 transition-all mx-auto" style={{color:c.inkMid}}>
           ← Back to menu
@@ -1719,17 +1762,23 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
 
         {/* Milk selection — press-down feel */}
         <div className="mb-8">
-          <p className="font-black uppercase text-base underline decoration-2 underline-offset-8 mb-5" style={{color:c.ink}}>SELECT YOUR MILK</p>
+          <div className="flex items-center gap-3 mb-6 justify-center">
+            <div style={{height:'1px',width:'2.5rem',background:c.border}}/>
+            <p className="font-black uppercase text-sm tracking-[.2em]" style={{color:c.inkMid}}>Choose your milk</p>
+            <div style={{height:'1px',width:'2.5rem',background:c.border}}/>
+          </div>
           <div className="space-y-3">
-            {available.map(m=>(
+            {available.map((m,mi)=>(
               <button key={m._key||m.name}
                 onClick={()=>onSelectMilk(m.name)}
-                onTouchStart={e=>e.currentTarget.style.transform='scale(.97)'}
+                onTouchStart={e=>e.currentTarget.style.transform='scale(.96)'}
                 onTouchEnd={e=>e.currentTarget.style.transform=''}
-                className="w-full py-6 rounded-[2rem] display text-3xl transition-all border-4"
-                style={selectedMilk===m.name
-                  ?{background:c.ink,color:c.bg,borderColor:c.ink,transform:'scale(1.02)'}
-                  :{background:c.surface,color:c.ink,borderColor:c.border}}>
+                className="w-full py-6 rounded-[2rem] display text-3xl border-4"
+                style={{...( selectedMilk===m.name
+                  ?{background:c.ink,color:c.bg,borderColor:c.ink,transform:'scale(1.02)',boxShadow:`0 8px 32px rgba(0,0,0,.18)`}
+                  :{background:c.surface,color:c.ink,borderColor:c.border,transform:'scale(1)'}),
+                  animation:`milkIn .38s cubic-bezier(.16,1,.3,1) ${mi*60+120}ms both`,
+                  transition:'background .18s, color .18s, border-color .18s, transform .18s, box-shadow .18s'}}>
                 {m.name}
               </button>
             ))}
@@ -1739,15 +1788,21 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
 
         {selectedMilk&&(
           <div className="space-y-5 animate-in">
-            <p className="font-black uppercase text-base underline decoration-2 underline-offset-8" style={{color:c.ink}}>SPECIAL REQUESTS</p>
+            <div className="flex items-center gap-3 justify-center">
+              <div style={{height:'1px',width:'2.5rem',background:c.border}}/>
+              <p className="font-black uppercase text-sm tracking-[.2em]" style={{color:c.inkMid}}>Customise</p>
+              <div style={{height:'1px',width:'2.5rem',background:c.border}}/>
+            </div>
             {chips.length>0&&(
               <div className="flex flex-wrap gap-2 justify-center">
                 {chips.map(chip=>(
-                  <button key={chip} onClick={()=>toggle(chip)}
-                    className="px-5 py-2.5 rounded-full text-sm font-bold uppercase tracking-widest transition-all border-2"
-                    style={active.includes(chip)
+                  <button key={chip+active.includes(chip)} onClick={()=>toggle(chip)}
+                    className="px-5 py-2.5 rounded-full text-sm font-bold uppercase tracking-widest border-2"
+                    style={{...(active.includes(chip)
                       ?{background:c.ink,color:c.bg,borderColor:c.ink}
-                      :{background:c.surface,color:c.ink,borderColor:c.border}}>
+                      :{background:c.surface,color:c.ink,borderColor:c.border}),
+                      animation:active.includes(chip)?'chipPop .25s cubic-bezier(.16,1,.3,1)':'',
+                      transition:'background .15s, color .15s, border-color .15s'}}>
                     {chip}
                   </button>
                 ))}
@@ -1755,18 +1810,22 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
             )}
             <input type="text" placeholder="Anything else? (optional)"
               value={active.filter(x=>!chips.includes(x)).join(', ')} onChange={e=>{ const free=e.target.value; const cp=active.filter(x=>chips.includes(x)); onSpecialRequest([...cp,free].filter(Boolean).join(', ')); }}
-              className="w-full px-6 py-5 rounded-[2rem] text-base font-medium border outline-none text-center"
-              style={{background:c.surface2,borderColor:c.border,color:c.ink}}/>
+              className="w-full px-6 py-4 rounded-[2rem] text-base font-medium border outline-none text-center"
+              style={{background:c.surface2,borderColor:c.border,color:c.ink}} placeholder="Anything else?"/>
             <div className="pt-2">
               <p className="display text-5xl mb-6" style={{color:c.ink}}>
                 {Number(pendingOrder.price)===0 ? 'FREE' : `TOTAL: ${fmtPrice(pendingOrder.price)}`}
               </p>
               <button onClick={handleConfirm} disabled={submitting}
-                className="w-full btn-confirm text-white py-8 rounded-[2.5rem] display text-4xl"
+                className="w-full text-white rounded-[2.5rem] display text-4xl relative overflow-hidden"
                 style={{background:`linear-gradient(160deg,${settings.accentColor||'#22c55e'},${settings.accentColor||'#22c55e'}bb)`,
-                        boxShadow:`0 12px 40px -4px ${settings.accentColor||'#22c55e'}66`,
-                        animation:'confirmGlow 3.5s ease-in-out infinite'}}>
-                {submitting ? 'PLACING ORDER…' : Number(pendingOrder.price)===0 ? 'ORDER FREE →' : 'CONFIRM ORDER'}
+                        boxShadow:`0 16px 48px -4px ${settings.accentColor||'#22c55e'}55`,
+                        padding:'2rem 1rem',
+                        animation:submitting?'none':'confirmGlow 3.5s ease-in-out infinite',
+                        opacity:submitting?.7:1,transition:'opacity .2s'}}>
+                {/* Shimmer sweep */}
+                {!submitting&&<span aria-hidden="true" style={{position:'absolute',inset:0,background:'linear-gradient(90deg,transparent 0%,rgba(255,255,255,.18) 50%,transparent 100%)',backgroundSize:'400px 100%',animation:'shimmerX 2.8s linear infinite',borderRadius:'inherit'}}/>}
+                <span className="relative z-10">{submitting ? 'PLACING ORDER…' : Number(pendingOrder.price)===0 ? 'ORDER FREE →' : 'CONFIRM ORDER'}</span>
               </button>
             </div>
           </div>
@@ -1779,10 +1838,18 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
 /* Success screen — SVG draw-in checkmark, staggered reveals */
 const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,queuePos}) => {
   const c = kc(settings.kioskDark);
+  const accentCol = settings.accentColor||'#22c55e';
+  const rawA=accentCol; const aA=rawA.length===4?`#${rawA[1]}${rawA[1]}${rawA[2]}${rawA[2]}${rawA[3]}${rawA[3]}`:rawA;
+  const rA=parseInt(aA.slice(1,3),16),gA=parseInt(aA.slice(3,5),16),bA=parseInt(aA.slice(5,7),16);
   return (
     <div className="kiosk-grain fixed inset-0 z-[500] flex flex-col items-center justify-center text-center px-6" style={{background:c.bg}}>
-      <div style={{animation:'successItem .5s .0s both'}}>
-        <AnimatedCheck size={112} color={settings.accentColor||'#22c55e'}/>
+      {/* Ambient glow behind check */}
+      <div style={{position:'absolute',width:'50vw',height:'50vw',borderRadius:'50%',background:`rgba(${rA},${gA},${bA},.9)`,filter:'blur(100px)',opacity:.12,pointerEvents:'none',animation:'breatheGlow 2.5s ease-in-out infinite'}}/>
+      <div className="relative" style={{animation:'successItem .5s .0s both'}}>
+        {/* Burst ring — fires once after check completes */}
+        <div style={{position:'absolute',inset:'-50%',borderRadius:'50%',border:`2px solid ${accentCol}`,animation:'burstRing .9s .55s cubic-bezier(0,.5,.5,1) both',pointerEvents:'none'}}/>
+        <div style={{position:'absolute',inset:'-50%',borderRadius:'50%',border:`1px solid ${accentCol}`,animation:'burstRing .9s .7s cubic-bezier(0,.5,.5,1) both',pointerEvents:'none',opacity:.5}}/>
+        <AnimatedCheck size={112} color={accentCol}/>
       </div>
       {orderNumber&&(
         <p className="font-bold uppercase tracking-widest text-sm mt-6 mb-1"
@@ -1813,7 +1880,7 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,que
       </div>
       <p className="font-bold uppercase tracking-[.2em] text-sm mt-6"
          style={{color:c.inkFaint,animation:'successItem .4s 1.05s both',opacity:0}}>
-        {Number(price)===0 ? "It's on us — enjoy!" : "Your coffee will be ready soon!"}
+        {Number(price)===0 ? "It's on us — enjoy! ☕" : "Find a good spot — we'll call your name! ☕"}
       </p>
     </div>
   );
