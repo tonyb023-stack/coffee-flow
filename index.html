@@ -88,6 +88,9 @@
     .kiosk-slide  { animation:kioskSlide .42s cubic-bezier(.16,1,.3,1) forwards; }
     .kiosk-back   { animation:kioskSlide .36s cubic-bezier(.16,1,.3,1) reverse forwards; }
     @keyframes drainRing { from{stroke-dashoffset:0} to{stroke-dashoffset:283} }
+    @keyframes sparkle { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0} }
+    @keyframes fadeOutScreen { 0%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
+    .success-screen-wrap { animation:fadeOutScreen var(--success-dur,5.2s) forwards; }
     .name-pulse:focus, .name-pulse-dark:focus {
       animation:none !important;
       border-color:var(--kiosk-accent,#22c55e) !important;
@@ -867,7 +870,7 @@ const HistoryDetailModal = ({order,onClose,onRequeue,onSaveNote}) => {
     <div className="text-left">
       <div className="flex items-center gap-2 mb-4">
         <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">#{order.orderNumber??'—'}</span>
-        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">{fmtTime(order.completedAt)}</span>
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">{new Date(order.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})} · {fmtTime(order.completedAt)}</span>
         <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${order.temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{order.temp}</span>
       </div>
       <h2 className="display text-3xl mb-1" style={S.ink}>{order.customer||'Guest'}</h2>
@@ -1027,7 +1030,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
 
   /* Stale shift: active but started more than 14 hours ago */
   const isStale = shift.active && shift.startTime > 0 &&
-    (Date.now() - shift.startTime) > 14 * 60 * 60 * 1000;
+    (Date.now() - shift.startTime) > 24 * 60 * 60 * 1000;
 
   const cells = [
     {label:'Revenue',    val:shiftStats.count>0?`$${shiftStats.revenue.toFixed(2)}`:'—'},
@@ -1036,6 +1039,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
     {label:'Peak Hour',  val:shiftStats.busiestHour, italic:true},
     {label:'Drinks/Hr',  val:shiftStats.perHour},
     {label:'Avg Price',  val:(shiftStats.avgRevenue&&shiftStats.avgRevenue!=='—'&&shiftStats.count>0)?`$${shiftStats.avgRevenue}`:'—'},
+    {label:'Longest Wait',val:shiftStats.maxWait!==null?fmtMins(shiftStats.maxWait):'—'},
   ];
   return (
     <div className="space-y-4 animate-in">
@@ -1199,7 +1203,13 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
           {submitting?'PLACING…':`Place Order — ${fmtPrice(drink.price)}`}
         </button>
       </div>}
-      {(drink||temp||milk)&&<button onClick={reset} className="w-full mt-3 py-2 text-[10px] font-bold uppercase tracking-widest" style={S.faint}>Clear</button>}
+      {drink&&milk&&(
+        <div className="flex items-center justify-between px-2 mt-1 mb-1 animate-in">
+          <span className="text-[10px] font-bold uppercase tracking-widest truncate" style={S.faint}>{drink.name}{temp?` · ${temp}`:''}{milk?` · ${milk}`:''}</span>
+          <span className="text-sm font-black ml-2 flex-shrink-0" style={S.ink}>{fmtPrice(drink.price)}</span>
+        </div>
+      )}
+      {(drink||temp||milk)&&<button onClick={reset} className="w-full mt-1 py-2 text-[10px] font-bold uppercase tracking-widest" style={S.faint}>Clear</button>}
     </div>
   );
 };
@@ -1597,8 +1607,10 @@ const AttractScreen = ({eventName,tagline,accent,onTap,queueCount,estWait}) => {
   const bg=`radial-gradient(ellipse at 50% 55%,rgba(${r},${g},${b},.18) 0%,transparent 65%),radial-gradient(ellipse at 15% 15%,rgba(${r},${g},${b},.08) 0%,transparent 55%),radial-gradient(ellipse at 80% 85%,rgba(${r},${g},${b},.06) 0%,transparent 50%),#0c0c0c`;
   return (
   <div className="kiosk-grain fixed inset-0 z-[300] flex flex-col items-center justify-center cursor-pointer select-none" style={{background:bg}} onClick={onTap}>
-    {/* Ambient breathe glow */}
+    {/* Ambient breathe glows */}
     <div style={{position:'absolute',width:'60vw',height:'60vw',borderRadius:'50%',background:`rgba(${r},${g},${b},1)`,filter:'blur(120px)',animation:'breatheGlow 4s ease-in-out infinite',pointerEvents:'none'}}/>
+    <div style={{position:'absolute',top:'15%',left:'10%',width:'28vw',height:'28vw',borderRadius:'50%',background:`rgba(${r},${g},${b},.6)`,filter:'blur(90px)',animation:'breatheGlow 5.5s 1.2s ease-in-out infinite',pointerEvents:'none'}}/>
+    <div style={{position:'absolute',bottom:'15%',right:'8%',width:'22vw',height:'22vw',borderRadius:'50%',background:`rgba(${r},${g},${b},.5)`,filter:'blur(80px)',animation:'breatheGlow 6s 2.5s ease-in-out infinite',pointerEvents:'none'}}/>
     <div className="absolute top-8 left-0 right-0 text-center" style={{pointerEvents:'none'}}>
       <span style={{color:'rgba(255,255,255,.25)',fontWeight:700,fontSize:'.85rem',fontFamily:"'DM Sans',sans-serif",letterSpacing:'.18em'}}>{clock}</span>
     </div>
@@ -1658,12 +1670,12 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
         <div className="fixed top-4 left-4 z-[50] flex items-center gap-1.5 px-3 py-1.5 rounded-full animate-in"
              style={{background:`${accent}22`,border:`1px solid ${accent}44`}}>
           <span className="w-1.5 h-1.5 rounded-full" style={{background:accent}}/>
-          <span className="text-[9px] font-black uppercase tracking-widest" style={{color:accent}}>~ {estWait} min wait</span>
+          <span className="text-[9px] font-black uppercase tracking-widest" style={{color:accent}}>~ {estWait}–{estWait+2} min wait</span>
         </div>
       )}
 
       {/* Header */}
-      <div className="text-center pt-10 mb-8 px-4">
+      <div className="text-center pt-10 mb-8 px-4 animate-in">
         <h1 className="display leading-none"
             style={{color:c.ink,fontSize:'clamp(3rem,15vw,9rem)',letterSpacing:'-.01em'}}>
           {settings.eventName||DEFAULTS.APP_NAME}
@@ -1698,7 +1710,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
       {/* Live wait indicator — shown when there's any queue */}
       {queueCount>0&&!isBusy&&(
         <div className="text-center mb-3 px-4">
-          <p className="text-xs font-bold uppercase tracking-widest" style={{color:c.inkFaint}}>~ {estWait} min wait</p>
+          <p className="text-xs font-bold uppercase tracking-widest" style={{color:c.inkFaint}}>~ {estWait}–{estWait+2} min wait</p>
         </div>
       )}
 
@@ -1706,7 +1718,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
       {customerName.trim()&&(
         <div className="text-center mb-4 px-4" style={{animation:'greetIn .4s cubic-bezier(.16,1,.3,1) forwards'}}>
           <p className="font-black uppercase tracking-[.18em] text-base" style={{color:accent}}>
-            Hi, {customerName.trim().replace(/\w/g,c=>c.toUpperCase())}! 👋
+            Hi, {customerName.trim().replace(/\b\w/g,c=>c.toUpperCase())}! 👋
           </p>
           <p className="text-xs font-medium mt-0.5 uppercase tracking-widest" style={{color:c.inkFaint}}>Choose your drink below</p>
         </div>
@@ -1723,12 +1735,12 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto px-4">
         {menu.map((drink,i)=>(
           <div key={drink._key||drink.name}
-               className={`rounded-[2.5rem] shadow-card p-6 flex flex-col justify-between ${drink.soldOut?'opacity-40 pointer-events-none':''}`}
+               className={`rounded-[2.5rem] shadow-card p-6 flex flex-col justify-between relative overflow-hidden ${drink.soldOut?'opacity-40 pointer-events-none':''}`}
                style={{background:c.surface,border:drink.featured&&!drink.soldOut?`1.5px solid ${accent}44`:`1px solid ${c.border}`,boxShadow:drink.featured&&!drink.soldOut?`0 8px 32px rgba(0,0,0,.12),0 0 0 1px ${accent}22`:undefined,
                        animation:`slideUp .55s cubic-bezier(.16,1,.3,1) ${i*80}ms both`,
                        transition:'transform .2s cubic-bezier(.16,1,.3,1), box-shadow .2s'}}
                onMouseEnter={e=>{if(!drink.soldOut){e.currentTarget.style.transform='scale(1.015)';e.currentTarget.style.boxShadow='0 16px 48px rgba(0,0,0,.14),0 4px 16px rgba(0,0,0,.08)';}}}
-               onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='';e.currentTarget.style.border='';}}
+               onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='';}}
                >
             <div className="flex justify-between items-start mb-5">
               <div className="flex-1 min-w-0">
@@ -1741,6 +1753,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
                   {drink.name}
                 </h3>
                 {drink.description&&<p className="text-sm font-medium mt-1 leading-snug" style={{color:c.inkMid,opacity:.8}}>{drink.description}</p>}
+                {drink.featured&&!drink.soldOut&&<span aria-hidden="true" style={{position:'absolute',inset:0,background:'linear-gradient(90deg,transparent 0%,rgba(255,255,255,.06) 50%,transparent 100%)',backgroundSize:'400px 100%',animation:'shimmerX 3.5s linear infinite',borderRadius:'inherit',pointerEvents:'none'}}/>}
               </div>
               <div className="text-right ml-3 flex-shrink-0">
                 <span className="text-sm font-bold px-3 py-1 rounded-full"
@@ -1810,9 +1823,12 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
             style={{color:c.inkMid,padding:'10px 16px',borderRadius:'9999px',background:c.surface2,border:`1px solid ${c.border}`}}>
             <span style={{fontSize:'1.1em'}}>←</span> Back
           </button>
-          <div className="flex items-center gap-1.5">
-            <div style={{width:28,height:4,borderRadius:2,background:settings.accentColor||'#22c55e'}}/>
-            <div style={{width:28,height:4,borderRadius:2,background:selectedMilk?settings.accentColor||'#22c55e':c.border,transition:'background .3s'}}/>
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center gap-1.5">
+              <div style={{width:28,height:4,borderRadius:2,background:settings.accentColor||'#22c55e'}}/>
+              <div style={{width:28,height:4,borderRadius:2,background:selectedMilk?settings.accentColor||'#22c55e':c.border,transition:'background .3s'}}/>
+            </div>
+            {selectedMilk&&<span className="text-[9px] font-black uppercase tracking-widest mt-0.5 animate-in" style={{color:settings.accentColor||'#22c55e'}}>{selectedMilk}</span>}
           </div>
           <div style={{width:72}}/>
         </div>
@@ -1903,13 +1919,13 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
 };
 
 /* Success screen — SVG draw-in checkmark, staggered reveals */
-const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,queuePos,estWait}) => {
+const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,queuePos,estWait,onDismiss}) => {
   const c = kc(settings.kioskDark);
   const accentCol = settings.accentColor||'#22c55e';
   const rawA=accentCol; const aA=rawA.length===4?`#${rawA[1]}${rawA[1]}${rawA[2]}${rawA[2]}${rawA[3]}${rawA[3]}`:rawA;
   const rA=parseInt(aA.slice(1,3),16),gA=parseInt(aA.slice(3,5),16),bA=parseInt(aA.slice(5,7),16);
   return (
-    <div className="kiosk-grain fixed inset-0 z-[500] flex flex-col items-center justify-center text-center px-6" style={{background:c.bg}}>
+    <div className="kiosk-grain fixed inset-0 z-[500] flex flex-col items-center justify-center text-center px-6 success-screen-wrap cursor-pointer select-none" style={{background:c.bg,'--success-dur':`${DEFAULTS.SUCCESS_MS}ms`}} onClick={onDismiss}>
       {/* Ambient glow behind check */}
       <div style={{position:'absolute',width:'50vw',height:'50vw',borderRadius:'50%',background:`rgba(${rA},${gA},${bA},.9)`,filter:'blur(100px)',opacity:.12,pointerEvents:'none',animation:'breatheGlow 2.5s ease-in-out infinite'}}/>
       <div className="relative" style={{animation:'successItem .5s .0s both'}}>
@@ -1935,6 +1951,16 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,que
                   textShadow:`0 0 60px rgba(${rA},${gA},${bA},.25)`}}>
         {Number(price)===0 ? "IT'S FREE! ☕" : "ORDER PLACED"}
       </h1>
+      {Number(price)===0&&(
+        <div style={{position:'absolute',inset:0,pointerEvents:'none',overflow:'hidden'}}>
+          {[...Array(12)].map((_,i)=>{
+            const angle=(i/12)*360, dist=110+i*9;
+            const dx=Math.cos(angle*Math.PI/180)*dist, dy=Math.sin(angle*Math.PI/180)*dist;
+            const cols=[accentCol,'#f59e0b','#ec4899','#8b5cf6','#06b6d4'];
+            return <div key={i} style={{position:'absolute',top:'38%',left:'50%',width:7,height:7,borderRadius:'50%',background:cols[i%cols.length],'--dx':`${dx}px`,'--dy':`${dy}px`,animation:`sparkle ${.7+i*.05}s ${i*55}ms cubic-bezier(.2,.8,.3,1) both`}}/>;
+          })}
+        </div>
+      )}
       {queuePos>0&&(
         <p className="font-bold uppercase tracking-[.15em] text-sm mt-3"
            style={{color:c.inkMid,animation:'successItem .4s .83s both',opacity:0}}>
@@ -1952,7 +1978,7 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,que
            style={{background:c.surface,borderColor:c.border,
                    borderLeftColor:temp==='HOT'?'#e84040':'#3b82f6',
                    animation:'successItem .4s .9s both',opacity:0}}>
-        <p className="font-black uppercase text-lg" style={{color:c.ink}}>{customer&&customer!=='Guest'?customer:'Your Order'}</p>
+        <p className="font-black uppercase text-lg" style={{color:c.ink}}>{customer&&customer!=='Guest'?`Thanks, ${customer}!`:'Your Order'}</p>
         <p className="font-medium text-sm mt-1" style={{color:c.inkMid}}>
           <span className={`text-[9px] font-black px-2 py-0.5 rounded-full mr-1.5 inline-block align-middle ${temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{temp}</span>
           {flavor} · {milk}
@@ -1970,6 +1996,10 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,que
       <p className="font-bold uppercase tracking-[.2em] text-sm mt-4"
          style={{color:c.inkFaint,animation:'successItem .4s 1.05s both',opacity:0}}>
         {Number(price)===0 ? "It's on us — enjoy! ☕" : "Find a good spot — we'll call your name! ☕"}
+      </p>
+      <p className="text-[9px] font-bold uppercase tracking-widest mt-8"
+         style={{color:c.inkFaint,animation:'successItem .4s 1.6s both',opacity:0}}>
+        Tap anywhere to dismiss
       </p>
     </div>
   );
@@ -2184,7 +2214,7 @@ const App = () => {
               <div className="bg-red-500 text-white px-6 py-4 rounded-2xl text-sm font-bold shadow-lift text-center">⚠️ {orderError}</div>
             </div>
           )}
-          {successData&&<SuccessScreen {...successData} settings={data.settings} estWait={data.estWait}/>}
+          {successData&&<SuccessScreen {...successData} settings={data.settings} estWait={data.estWait} onDismiss={()=>setSuccessData(null)}/>}
           {showPinPad&&<PinPad correctPin={data.settings.pin||DEFAULTS.DEFAULT_PIN} onSuccess={handlePinSuccess} onCancel={()=>setShowPinPad(false)}/>}
         </Fragment>
       )}
