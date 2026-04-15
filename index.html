@@ -43,12 +43,16 @@
       --bg:        #0c0c0c;
       --surface:   #181818;
       --surface-2: #242424;
-      --border:    #2e2e2e;
+      --border:    #3a3a3a;
       --ink:       #f0f0f0;
       --ink-mid:   #9a9a9a;
-      --ink-faint: #444444;
+      --ink-faint: #656565;
     }
     * { box-sizing: border-box; }
+    body.dark {
+      background-image: radial-gradient(ellipse at 28% 0%, rgba(255,255,255,.024) 0%, transparent 55%),
+                        radial-gradient(ellipse at 80% 100%, rgba(255,255,255,.014) 0%, transparent 50%);
+    }
     body {
       font-family: 'DM Sans', sans-serif;
       background: var(--bg); color: var(--ink);
@@ -84,17 +88,24 @@
     @keyframes chipPop     { 0%{transform:scale(.88)} 60%{transform:scale(1.08)} 100%{transform:scale(1)} }
 
     .kiosk-float  { animation:floatY 6.5s ease-in-out infinite; }
+    @keyframes busyPill { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.82;transform:scale(1.04)} }
+    .kiosk-busy-pill { animation:busyPill 2.6s ease-in-out infinite; }
     .kiosk-tap    { animation:tapBounce 2.8s ease-in-out infinite; }
     .kiosk-slide  { animation:kioskSlide .42s cubic-bezier(.16,1,.3,1) forwards; }
     .kiosk-back   { animation:kioskSlide .36s cubic-bezier(.16,1,.3,1) reverse forwards; }
-    @keyframes drainRing { from{stroke-dashoffset:0} to{stroke-dashoffset:283} }
+    @keyframes drainRing   { from{stroke-dashoffset:0} to{stroke-dashoffset:283} }
+    @keyframes lockFadeIn  { from{opacity:0;transform:scale(.98)} to{opacity:1;transform:scale(1)} }
+    @keyframes nameShake   { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
+    @keyframes arrowBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    .name-shake   { animation:nameShake .4s ease forwards; }
+    .arrow-bounce { animation:arrowBounce 1.5s ease-in-out infinite; }
     @keyframes sparkle { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0} }
     @keyframes fadeOutScreen { 0%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
     .success-screen-wrap { animation:fadeOutScreen var(--success-dur,5.2s) forwards; }
     .name-pulse:focus, .name-pulse-dark:focus {
       animation:none !important;
       border-color:var(--kiosk-accent,#22c55e) !important;
-      box-shadow:0 0 0 4px color-mix(in srgb,var(--kiosk-accent,#22c55e) 20%,transparent) !important;
+      box-shadow:0 0 0 4px rgba(34,197,94,.18) !important;
     }
 
     .animate-in    { animation: slideUp  .4s cubic-bezier(.16,1,.3,1) forwards; }
@@ -145,6 +156,14 @@
     .card-warn  { box-shadow: 0 0 0 2px #f59e0b, 0 2px 12px rgba(0,0,0,.06); }
     .card-late  { box-shadow: 0 0 0 2px #e84040, 0 2px 12px rgba(0,0,0,.06); }
     .card-ready { box-shadow: 0 0 0 2px #22c55e, 0 2px 12px rgba(0,0,0,.06); }
+    body.dark .card-warn  { box-shadow: 0 0 0 2px #f59e0b, 0 2px 18px rgba(0,0,0,.55) !important; }
+    body.dark .card-late  { box-shadow: 0 0 0 2px #e84040, 0 2px 18px rgba(0,0,0,.55) !important; }
+    body.dark .card-ready { box-shadow: 0 0 0 2px #22c55e, 0 2px 18px rgba(0,0,0,.55) !important; }
+    body.dark input[type="text"],body.dark input[type="number"],body.dark input[type="password"],body.dark textarea {
+      border-color:#4a4a4a !important; background:#1e1e1e !important; }
+    body.dark input::placeholder { color:#585858 !important; }
+    body.dark input[type="text"]:focus,body.dark input[type="number"]:focus,body.dark textarea:focus {
+      border-color:#666 !important; box-shadow:0 0 0 3px rgba(255,255,255,.05) !important; }
 
     /* ── Misc ────────────────────────────────── */
     .stat-bar { transition: width .8s cubic-bezier(.16,1,.3,1); }
@@ -153,6 +172,13 @@
     .no-scroll { -ms-overflow-style:none; scrollbar-width:none; }
     .pin-filled { background:var(--ink); transform:scale(1.15); transition:all .15s; }
     #share-card { position:fixed; left:-9999px; top:0; width:640px; }
+
+    /* ── Dark mode shadow overrides ────────────
+       Default shadows use rgba(0,0,0,.06) — invisible on dark backgrounds.
+       ─────────────────────────────────────────── */
+    body.dark .shadow-soft { box-shadow:0 2px 12px rgba(0,0,0,.35),0 1px 4px rgba(0,0,0,.25) !important; }
+    body.dark .shadow-card { box-shadow:0 8px 32px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3) !important; }
+    body.dark .shadow-lift { box-shadow:0 20px 60px rgba(0,0,0,.7),0 4px 16px rgba(0,0,0,.4) !important; }
 
     /* ── Dark mode overrides for hardcoded Tailwind colours ─────────
        Tailwind utility classes resolve at build-time to fixed hex values
@@ -183,8 +209,14 @@
     body.dark .border-green-200 { border-color: rgba(34,197,94,.2) !important; }
     body.dark .text-green-700   { color: #4ade80 !important; }
 
+    /* Amber/emerald text overrides */
+    body.dark .text-amber-500  { color: #fbbf24 !important; }
+    body.dark .text-emerald-500{ color: #4ade80 !important; }
+
     /* Amber tints — pause active banner */
     body.dark .bg-amber-50      { background: rgba(245,158,11,.12) !important; }
+    body.dark .bg-amber-100     { background: rgba(245,158,11,.18) !important; }
+    body.dark .text-amber-600   { color: #fbbf24 !important; }
     body.dark .border-amber-200 { border-color: rgba(245,158,11,.2) !important; }
     body.dark .text-amber-700   { color: #fbbf24 !important; }
 
@@ -197,8 +229,12 @@
     body.dark .text-blue-500 { color: #60a5fa !important; }
     /* Nav hover — prevent slate-100 flash on dark bg */
     body.dark .hover\:opacity-70:hover { opacity:.7; }
-    /* Queue warning — always dark ink on amber */
+    body.dark nav button:hover { background:var(--surface-2) !important; }
+    /* Queue warning — dark-mode-aware */
     .queue-warn-text { color: #1c1400; }
+    .queue-warn-bg   { background: #fde68a; }
+    body.dark .queue-warn-bg   { background: rgba(245,158,11,.16) !important; border:1px solid rgba(245,158,11,.25) !important; }
+    body.dark .queue-warn-text { color: #fde68a !important; }
     .btn-hot  { background:linear-gradient(160deg,#f87171,#e84040); box-shadow:0 8px 24px -4px rgba(232,64,64,.4); }
     .btn-iced { background:linear-gradient(160deg,#60a5fa,#3b82f6); box-shadow:0 8px 24px -4px rgba(59,130,246,.4); }
     .btn-hot:active, .btn-iced:active  { transform:scale(.96); box-shadow:none; }
@@ -677,14 +713,14 @@ const AnimatedCheck = ({size=112,color='#22c55e'}) => (
    SECTION 5 — BARISTA UI VIEWS
    ═══════════════════════════════════════════════════════════════════ */
 
-const BaristaNav = ({view,setView,queueCount,online,paused}) => (
+const BaristaNav = ({view,setView,queueCount,online,paused,accentColor}) => (
   <nav className="flex items-center gap-2 p-2 rounded-2xl shadow-soft border mb-5" style={S.surf}>
     <div className="flex gap-1 flex-1 overflow-x-auto no-scroll">
       {['queue','add','history','stats','settings'].map(t=>(
         <button key={t} onClick={()=>setView(t)}
           className="flex-shrink-0 px-3 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest whitespace-nowrap inline-flex items-center"
           style={view===t
-            ? {background:'var(--ink)',color:'var(--bg)',transition:'background .2s,color .2s'}
+            ? {background:accentColor||'var(--ink)',color:'var(--bg)',transition:'background .2s,color .2s'}
             : {...S.mid,transition:'background .2s,color .2s'}}>
           {t==='add'?'Add (N)':t==='queue'?'Queue (Q)':t==='history'?'History (H)':t==='stats'?'Stats (S)':'Settings (E)'}
           {t==='queue'&&<Badge count={queueCount}/>}
@@ -736,7 +772,7 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins,mil
       <div className="flex items-start justify-between gap-3 mb-1.5">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            {position&&<span className="text-[8px] font-black w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--ink-faint)',color:'var(--bg)'}}>{position}</span>}
+            {position&&<span className="text-[8px] font-black w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--ink)',color:'var(--bg)'}}>{position}</span>}
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">#{order.orderNumber??'—'}</span>
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">{fmtTime(order.startTime)}</span>
             {order.ready&&<span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-600">READY ✓</span>}
@@ -837,15 +873,15 @@ const QueueView = ({orders,settings,milks,onReady,onComplete,onNote,onEdit,estWa
   return (
     <div className="space-y-2.5 animate-in">
       {pending.length>=warn&&(
-        <div className="queue-warn-text px-5 py-3 rounded-2xl font-bold text-sm text-center" style={{background:'#fde68a'}}>
-          ⚡ {pending.length} in queue{ready.length>0?` · ${ready.length} ready for pickup`:''} · est. {estWait}m wait shown to customers
+        <div className="queue-warn-text queue-warn-bg px-5 py-3 rounded-2xl font-bold text-sm text-center">
+          ⚡ {pending.length} in queue{ready.length>0?` · ${ready.length} ready for pickup`:''} · est. {fmtMins(estWait)} wait shown to customers
         </div>
       )}
       {orders.length===0&&(
         <div className="text-center py-24">
           <div style={{fontSize:'3rem',opacity:.15,marginBottom:'12px'}}>☕</div>
           <div className="display text-5xl mb-2" style={S.faint}>QUEUE CLEAR</div>
-          <p className="text-sm font-medium" style={S.faint}>{shiftActive?'All orders completed ✓':'Start a shift from the Stats tab'}</p>
+          <p className="text-sm font-medium" style={S.faint}>{shiftActive?'All orders completed ✓':"No active shift · go to Stats (S) to start one"}</p>
         </div>
       )}
       {ready.length>0&&(
@@ -864,7 +900,9 @@ const QueueView = ({orders,settings,milks,onReady,onComplete,onNote,onEdit,estWa
 const HistoryDetailModal = ({order,onClose,onRequeue,onSaveNote}) => {
   const [noteVal,setNoteVal]=useState(order.baristaNote||'');
   const [noteSaved,setNoteSaved]=useState(false);
-  const saveNote=()=>{ onSaveNote&&onSaveNote(order._key,noteVal); setNoteSaved(true); setTimeout(()=>setNoteSaved(false),2000); };
+  const noteSaveTimer=useRef(null);
+  useEffect(()=>()=>clearTimeout(noteSaveTimer.current),[]);
+  const saveNote=()=>{ onSaveNote&&onSaveNote(order._key,noteVal); setNoteSaved(true); clearTimeout(noteSaveTimer.current); noteSaveTimer.current=setTimeout(()=>setNoteSaved(false),2000); };
   return (
   <Modal onClose={onClose}>
     <div className="text-left">
@@ -922,7 +960,8 @@ const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
         o.flavor?.toLowerCase().includes(q.toLowerCase())||
         o.note?.toLowerCase().includes(q.toLowerCase())||
         o.milk?.toLowerCase().includes(q.toLowerCase())||
-        o.baristaNote?.toLowerCase().includes(q.toLowerCase()));
+        o.baristaNote?.toLowerCase().includes(q.toLowerCase())||
+        o.orderNumber?.toString()===q.replace('#','').trim());
     if(tempFilter) r=r.filter(o=>o.temp===tempFilter);
     return r;
   },[history,q,tempFilter]);
@@ -964,11 +1003,11 @@ const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
           style={S.faint}>✕</button>}
       </div>
       <div className="flex gap-2 mb-4">
-        {[['','All'],['HOT','🔥 Hot'],['ICED','🧊 Iced']].map(([v,l])=>(
+        {[['','All',history.length],['HOT','🔥 Hot',history.filter(o=>o.temp==='HOT').length],['ICED','🧊 Iced',history.filter(o=>o.temp==='ICED').length]].map(([v,l,n])=>(
           <button key={v} onClick={()=>{setTempFilter(v);setPage(1);}}
-            className="px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all"
+            className="px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all inline-flex items-center gap-1.5"
             style={tempFilter===v?{background:'var(--ink)',color:'var(--bg)'}:{...S.surf2,...S.mid}}>
-            {l}
+            {l}<span className="opacity-50 text-[8px]">{n}</span>
           </button>
         ))}
       </div>
@@ -979,7 +1018,7 @@ const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
             <p className="text-[9px] font-black uppercase tracking-widest mb-2 px-1" style={S.faint}>{group.label} <span className="opacity-50">({group.items.length})</span></p>
             <div className="space-y-2">
               {group.items.map(o=>(
-                <div key={o._key||o.orderNumber} onClick={()=>setDetail(o)} className="flex justify-between items-start p-4 rounded-2xl border gap-3 cursor-pointer hover:opacity-80 transition-all" style={S.surf2}>
+                <div key={o._key||o.orderNumber} onClick={()=>setDetail(o)} className="flex justify-between items-start p-4 rounded-2xl border border-l-[5px] gap-3 cursor-pointer hover:opacity-80 transition-all" style={{...S.surf2,borderLeftColor:o.temp==='HOT'?'#e84040':'#3b82f6'}}>
                   <div className="flex-1 min-w-0">
                     <div className="flex gap-2 items-center mb-1 flex-wrap">
                       <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">#{o.orderNumber??'—'}</span>
@@ -1033,13 +1072,13 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
     (Date.now() - shift.startTime) > 24 * 60 * 60 * 1000;
 
   const cells = [
-    {label:'Revenue',    val:shiftStats.count>0?`$${shiftStats.revenue.toFixed(2)}`:'—'},
-    {label:'Top Drink',  val:shiftStats.topDrink,   italic:true},
-    {label:'Avg Wait',   val:fmtMins(shiftStats.avgWait)+(shiftStats.minWait!==null&&shiftStats.maxWait!==null&&shiftStats.count>1?` (${fmtMins(shiftStats.minWait)}–${fmtMins(shiftStats.maxWait)})`:'')},
-    {label:'Peak Hour',  val:shiftStats.busiestHour, italic:true},
-    {label:'Drinks/Hr',  val:shiftStats.perHour},
-    {label:'Avg Price',  val:(shiftStats.avgRevenue&&shiftStats.avgRevenue!=='—'&&shiftStats.count>0)?`$${shiftStats.avgRevenue}`:'—'},
-    {label:'Longest Wait',val:shiftStats.maxWait!==null?fmtMins(shiftStats.maxWait):'—'},
+    {label:'Revenue',     val:shiftStats.count>0?(shiftStats.revenue>0?`$${shiftStats.revenue.toFixed(2)}`:'FREE'):'—'},
+    {label:'Top Drink',   val:shiftStats.topDrink,   italic:true},
+    {label:'Peak Hour',   val:shiftStats.busiestHour, italic:true},
+    {label:'Drinks/Hr',   val:shiftStats.perHour},
+    {label:'Avg Price',   val:(shiftStats.avgRevenue&&shiftStats.avgRevenue!=='—'&&shiftStats.count>0)?`$${shiftStats.avgRevenue}`:'—'},
+    {label:'Avg Wait',    val:fmtMins(shiftStats.avgWait)+(shiftStats.minWait!==null&&shiftStats.maxWait!==null&&shiftStats.count>1?` (${fmtMins(shiftStats.minWait)}–${fmtMins(shiftStats.maxWait)})`:'')},
+    {label:'Fastest Order',val:shiftStats.minWait!==null?fmtMins(shiftStats.minWait):'—'},
   ];
   return (
     <div className="space-y-4 animate-in">
@@ -1077,7 +1116,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
           <>
             <div className="py-5 border-t border-b text-center" style={{borderColor:'var(--border)'}}>
               <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={S.faint}>Drinks Served</p>
-              <p className="display text-8xl" style={S.ink}>{shiftStats.count}</p>
+              <p className="display text-8xl" style={{...S.ink,textShadow:'0 0 40px rgba(255,255,255,.04)'}}>{shiftStats.count}</p>
               {shiftStats.revenue>0&&<p className="text-xl font-black mt-1" style={S.mid}>${shiftStats.revenue.toFixed(2)}</p>}
               <div className="flex justify-center gap-4 mt-2">
                 {(()=>{ const tot=(shiftStats.hotCount||0)+(shiftStats.icedCount||0); return (<>
@@ -1101,7 +1140,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
                 <div key={label} className="text-center">
                   <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={S.faint}>{label}</p>
                   <p className={`font-black leading-tight ${italic?'italic':''}`}
-                     style={{...S.ink, fontSize:label==='Avg Wait'&&val.length>6?'clamp(.7rem,2vw,.9rem)':'clamp(.85rem,2.5vw,1.125rem)'}}>{val}</p>
+                     style={{...S.ink, fontSize:(label==='Avg Wait'||label==='Longest Wait')&&val.length>4?'clamp(.7rem,2vw,.9rem)':'clamp(.85rem,2.5vw,1.125rem)'}}>{val}</p>
                 </div>
               ))}
             </div>
@@ -1154,17 +1193,17 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
   const avail=menu.filter(d=>!d.soldOut), availMilks=milks.filter(m=>!m.soldOut);
   if(placed) return (
     <div className="rounded-[2.5rem] p-10 shadow-soft border text-center animate-pop" style={S.surf}>
-      <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style={{background:accentColor||'#22c55e'}}><span className="text-white text-2xl font-black">✓</span></div>
+      <div className="flex justify-center mb-3"><AnimatedCheck size={72} color={accentColor||'#22c55e'}/></div>
       {orderNum&&<p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={S.faint}>Order #{orderNum}</p>}
       <p className="display text-3xl" style={S.ink}>ORDER PLACED</p>
-      {drink&&<p className="text-sm font-bold mt-1" style={S.mid}>{drink.name} · {temp} · {milk}</p>}
+      {drink&&<p className="text-sm font-bold mt-1.5" style={S.mid}>{drink.name} · {temp} · {milk||'—'}</p>}
       <button onClick={()=>{clearTimeout(timerRef.current);setPlaced(false);setOrderNum(null);reset();}} className="mt-5 px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-70" style={{...S.surf2,...S.mid}}>+ Place Another</button>
     </div>
   );
   return (
     <div className="rounded-[2.5rem] p-8 shadow-soft border animate-in" style={S.surf}>
       <h2 className="display text-3xl mb-5" style={S.ink}>WALK-UP ORDER</h2>
-      <input value={name} onChange={e=>setName(e.target.value)} autoComplete="off" placeholder="Customer name (optional)" className="w-full px-5 py-3.5 rounded-2xl text-sm font-medium mb-5 outline-none border" style={S.inp} onKeyDown={e=>{if(e.key==='Enter') document.getElementById('qa-first-drink')?.click();}}/>
+      <input value={name} onChange={e=>setName(e.target.value)} autoComplete="off" placeholder="Customer name (optional)" className="w-full px-5 py-3.5 rounded-2xl text-sm font-medium mb-5 outline-none border" style={{...S.inp,textTransform:'capitalize'}} onKeyDown={e=>{if(e.key==='Enter') document.getElementById('qa-first-drink')?.click();}}/>
       <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={S.faint}>Drink</p>
       <div className="grid grid-cols-2 gap-2 mb-4">
         {avail.map(d=>(
@@ -1198,7 +1237,8 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
         </div>
       </div>}
       {milk&&<div className="animate-in space-y-3">
-        <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Special request (optional)" className="w-full px-5 py-3.5 rounded-2xl text-sm font-medium outline-none border" style={S.inp} onKeyDown={e=>{if(e.key==='Enter'&&drink&&temp&&milk)confirm();}}/>
+        <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Special request (optional)" maxLength={120} className="w-full px-5 py-3.5 rounded-2xl text-sm font-medium outline-none border" style={S.inp} onKeyDown={e=>{if(e.key==='Enter'&&drink&&temp&&milk)confirm();}}/>
+
         <button onClick={confirm} disabled={submitting} className="w-full btn-confirm text-white py-4 rounded-2xl font-black text-base uppercase tracking-widest" style={submitting?{opacity:.6,cursor:'not-allowed'}:{}}>
           {submitting?'PLACING…':`Place Order — ${fmtPrice(drink.price)}`}
         </button>
@@ -1258,7 +1298,7 @@ const ChecklistView = ({settings,shift,menu,milks}) => {
             <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${item.done?'bg-green-500':'border-2'}`} style={item.done?{}:{borderColor:'var(--border)'}}>
               {item.done&&<span className="text-white text-sm">✓</span>}
             </div>
-            <span className={`text-sm font-bold flex-1 ${item.done?'text-green-700 line-through opacity-60':''}`} style={item.done?{}:S.ink}>{item.label}</span>
+            <span className={`text-sm font-bold flex-1 ${item.done?'text-green-700 line-through opacity-75':''}`} style={item.done?{}:S.ink}>{item.label}</span>
             {item.auto&&item.done&&<span className="text-[8px] font-bold uppercase tracking-widest text-green-500">auto ✓</span>}
           </div>
         ))}
@@ -1369,11 +1409,17 @@ const SettingsView = ({
           </div>
           <div>
             <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Kiosk Accent Colour</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {['#22c55e','#3b82f6','#f59e0b','#e84040','#8b5cf6','#ec4899','#06b6d4','#0f0f0f'].map(col=>(
+                <button key={col} onClick={()=>onUpdateSettings({accentColor:col})}
+                  className="w-9 h-9 rounded-full transition-all hover:scale-110 active:scale-95"
+                  style={{background:col,outline:(settings.accentColor||'#22c55e')===col?'3px solid var(--ink)':'3px solid transparent',outlineOffset:'2px'}}/>
+              ))}
+            </div>
             <div className="flex items-center gap-3">
               <input type="color" value={settings.accentColor||'#22c55e'}
                 onChange={e=>onUpdateSettings({accentColor:e.target.value})}
                 className="w-12 h-10 rounded-xl border cursor-pointer" style={{borderColor:'var(--border)'}}/>
-              <div className="w-6 h-6 rounded-full border flex-shrink-0" style={{background:settings.accentColor||'#22c55e',borderColor:'var(--border)'}}/>
               <span className="text-xs font-bold font-mono" style={S.mid}>{settings.accentColor||'#22c55e'}</span>
             </div>
           </div>
@@ -1590,7 +1636,7 @@ const DbErrorBanner=({message})=>(
 
 /* Kiosk colour tokens — light or dark based on settings.kioskDark */
 const kc = (dark) => ({
-  bg:       dark ? '#0d0d0d'  : '#f8f7f4',
+  bg:       dark ? '#0e0d0c'  : '#f8f7f4',
   surface:  dark ? '#1c1c1c'  : '#ffffff',
   surface2: dark ? '#252525'  : '#f3f2ef',
   border:   dark ? '#333333'  : '#ebebeb',
@@ -1603,7 +1649,15 @@ const kc = (dark) => ({
 const AttractScreen = ({eventName,tagline,accent,onTap,queueCount,estWait}) => {
   const raw=accent||'#22c55e'; const a=raw.length===4?`#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`:raw; const r=parseInt(a.slice(1,3),16),g=parseInt(a.slice(3,5),16),b=parseInt(a.slice(5,7),16);
   const [clock,setClock]=useState(()=>new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}));
-  useEffect(()=>{ const id=setInterval(()=>setClock(new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})),5000); return()=>clearInterval(id); },[]);
+  const [dateStr,setDateStr]=useState(()=>new Date().toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}));
+  useEffect(()=>{
+    const id=setInterval(()=>{
+      const now=new Date();
+      setClock(now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}));
+      setDateStr(now.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}));
+    },10000);
+    return()=>clearInterval(id);
+  },[]);
   const bg=`radial-gradient(ellipse at 50% 55%,rgba(${r},${g},${b},.18) 0%,transparent 65%),radial-gradient(ellipse at 15% 15%,rgba(${r},${g},${b},.08) 0%,transparent 55%),radial-gradient(ellipse at 80% 85%,rgba(${r},${g},${b},.06) 0%,transparent 50%),#0c0c0c`;
   return (
   <div className="kiosk-grain fixed inset-0 z-[300] flex flex-col items-center justify-center cursor-pointer select-none" style={{background:bg}} onClick={onTap}>
@@ -1612,7 +1666,8 @@ const AttractScreen = ({eventName,tagline,accent,onTap,queueCount,estWait}) => {
     <div style={{position:'absolute',top:'15%',left:'10%',width:'28vw',height:'28vw',borderRadius:'50%',background:`rgba(${r},${g},${b},.6)`,filter:'blur(90px)',animation:'breatheGlow 5.5s 1.2s ease-in-out infinite',pointerEvents:'none'}}/>
     <div style={{position:'absolute',bottom:'15%',right:'8%',width:'22vw',height:'22vw',borderRadius:'50%',background:`rgba(${r},${g},${b},.5)`,filter:'blur(80px)',animation:'breatheGlow 6s 2.5s ease-in-out infinite',pointerEvents:'none'}}/>
     <div className="absolute top-8 left-0 right-0 text-center" style={{pointerEvents:'none'}}>
-      <span style={{color:'rgba(255,255,255,.25)',fontWeight:700,fontSize:'.85rem',fontFamily:"'DM Sans',sans-serif",letterSpacing:'.18em'}}>{clock}</span>
+      <span style={{color:'rgba(255,255,255,.28)',fontWeight:700,fontSize:'.9rem',fontFamily:"'DM Sans',sans-serif",letterSpacing:'.12em'}}>{clock}</span>
+      <span style={{display:'block',color:'rgba(255,255,255,.16)',fontWeight:600,fontSize:'.68rem',fontFamily:"'DM Sans',sans-serif",letterSpacing:'.22em',marginTop:'2px',textTransform:'uppercase'}}>{dateStr}</span>
     </div>
     <h1 className="kiosk-float display text-white text-center px-8 mb-3 relative"
         style={{fontSize:'clamp(2.5rem,13vw,10rem)',letterSpacing:'-.01em',lineHeight:1,textShadow:`0 0 80px rgba(${r},${g},${b},.3)`}}>
@@ -1628,7 +1683,7 @@ const AttractScreen = ({eventName,tagline,accent,onTap,queueCount,estWait}) => {
       <div style={{position:'absolute',inset:0,borderRadius:'9999px',border:`1px solid rgba(${r},${g},${b},.7)`,animation:'ringPulse 2.4s ease-out infinite'}}/>
       <span className="kiosk-tap w-2 h-2 rounded-full relative z-10" style={{background:accent||'#22c55e'}}/>
       <span className="text-white/60 text-xs font-bold uppercase tracking-[.2em] relative z-10">
-        {queueCount>0 ? `TAP TO ORDER — ~${estWait} MIN WAIT` : 'TAP ANYWHERE TO ORDER'}
+        {queueCount>0 ? `TAP TO ORDER  ·  ~${estWait} MIN WAIT` : 'TAP TO START YOUR ORDER'}
       </span>
     </div>
   </div>
@@ -1658,19 +1713,26 @@ const PauseScreen = ({message,onExitTap}) => (
 );
 
 const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChange,onSelectDrink,onExitTap}) => {
-  const c     = kc(settings.kioskDark);
-  const dark  = settings.kioskDark;
-  const warn  = settings.warnAt||DEFAULTS.QUEUE_WARN;
-  const isBusy= queueCount>=warn;
-  const accent= settings.accentColor||'#22c55e';
+  const c       = kc(settings.kioskDark);
+  const dark    = settings.kioskDark;
+  const warn    = settings.warnAt||DEFAULTS.QUEUE_WARN;
+  const isBusy  = queueCount>=warn;
+  const accent  = settings.accentColor||'#22c55e';
+  const hasName = customerName.trim().length > 0;
+  const nameInputRef = useRef(null);
+  const [shakeName,setShakeName] = useState(false);
+  const focusName = () => {
+    if(nameInputRef.current){ nameInputRef.current.focus(); nameInputRef.current.scrollIntoView({behavior:'smooth',block:'center'}); }
+    setShakeName(true); setTimeout(()=>setShakeName(false),450);
+  };
   return (
     <div className="kiosk-grain min-h-screen pb-28" style={{background:c.bg,'--kiosk-accent':accent,'--kiosk-border':c.border}}>
       <div onClick={onExitTap} style={{position:'fixed',top:0,right:0,width:120,height:120,zIndex:10000}}/>
-      {isBusy&&(
-        <div className="fixed top-4 left-4 z-[50] flex items-center gap-1.5 px-3 py-1.5 rounded-full animate-in"
-             style={{background:`${accent}22`,border:`1px solid ${accent}44`}}>
+      {isBusy&&estWait>2&&(
+        <div className="fixed top-4 left-4 z-[50] flex items-center gap-1.5 px-3 py-2 rounded-full animate-in"
+             style={{background:`${accent}15`,border:`1px solid ${accent}50`,backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)'}}>
           <span className="w-1.5 h-1.5 rounded-full" style={{background:accent}}/>
-          <span className="text-[9px] font-black uppercase tracking-widest" style={{color:accent}}>~ {estWait}–{estWait+2} min wait</span>
+          <span className="text-[9px] font-black uppercase tracking-widest" style={{color:accent}}>~ {fmtMins(estWait)} wait</span>
         </div>
       )}
 
@@ -1681,7 +1743,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
           {settings.eventName||DEFAULTS.APP_NAME}
         </h1>
         {(settings.tagline) && (
-          <p className="font-bold uppercase tracking-[.25em] text-sm mt-2" style={{color:c.inkMid}}>
+          <p className="font-bold uppercase tracking-[.2em] text-base mt-2" style={{color:c.inkMid}}>
             {settings.tagline}
           </p>
         )}
@@ -1689,10 +1751,15 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
 
       {/* Name field */}
       <div className="max-w-xl mx-auto px-4 mb-10">
+        {!customerName.trim()&&(
+          <p className="text-center text-[10px] font-bold uppercase tracking-[.2em] mb-3" style={{color:c.inkFaint,animation:'successItem .5s .1s both',opacity:0}}>
+            Enter your name to begin
+          </p>
+        )}
         <div className="relative">
-          <input type="text" placeholder="WHAT'S YOUR NAME?"
+          <input ref={nameInputRef} type="text" placeholder="Your name"
             autoComplete="off"
-            className={`w-full px-6 py-5 rounded-[2rem] text-2xl font-black text-center outline-none shadow-card ${dark?'name-pulse-dark':'name-pulse'}`}
+            className={`w-full px-6 py-5 rounded-[2rem] text-2xl font-black text-center outline-none shadow-card ${shakeName?'name-shake':''} ${dark?'name-pulse-dark':'name-pulse'}`}
             style={{background:c.surface,color:c.ink,textTransform:'capitalize'}}
             value={customerName}
             onChange={e=>onNameChange(e.target.value)}
@@ -1710,12 +1777,12 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
       {/* Live wait indicator — shown when there's any queue */}
       {queueCount>0&&!isBusy&&(
         <div className="text-center mb-3 px-4">
-          <p className="text-xs font-bold uppercase tracking-widest" style={{color:c.inkFaint}}>~ {estWait}–{estWait+2} min wait</p>
+          <p className="text-xs font-bold uppercase tracking-widest" style={{color:c.inkFaint}}>~ {fmtMins(estWait)} wait</p>
         </div>
       )}
 
       {/* Personal greeting when name entered */}
-      {customerName.trim()&&(
+      {hasName&&(
         <div className="text-center mb-4 px-4" style={{animation:'greetIn .4s cubic-bezier(.16,1,.3,1) forwards'}}>
           <p className="font-black uppercase tracking-[.18em] text-base" style={{color:accent}}>
             Hi, {customerName.trim().replace(/\b\w/g,c=>c.toUpperCase())}! 👋
@@ -1724,15 +1791,35 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
         </div>
       )}
 
-      {/* Section divider */}
-      <div className="flex items-center gap-3 max-w-4xl mx-auto px-4 mb-4">
+      {/* Section divider — fades in once name entered */}
+      <div className="flex items-center gap-3 max-w-4xl mx-auto px-4 mb-4"
+           style={{opacity:hasName?1:0,transition:'opacity .5s',pointerEvents:'none'}}>
         <div style={{flex:1,height:'1px',background:`linear-gradient(to right,transparent,${c.border})`}}/>
         <p className="font-black uppercase text-sm tracking-[.22em]" style={{color:c.inkFaint}}>Our menu</p>
         <div style={{flex:1,height:'1px',background:`linear-gradient(to left,transparent,${c.border})`}}/>
       </div>
 
-      {/* Drink grid with staggered entrance */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto px-4">
+      {/* Drink grid — locked behind overlay until name entered */}
+      <div className="relative max-w-4xl mx-auto px-4">
+        {!hasName&&(
+          <div onClick={focusName}
+               className="absolute inset-0 z-10 flex flex-col items-center justify-center cursor-pointer rounded-[2rem] select-none"
+               style={{backdropFilter:'blur(5px)',WebkitBackdropFilter:'blur(5px)',
+                       background:'rgba(0,0,0,.22)',animation:'lockFadeIn .35s ease forwards'}}>
+            <div className="arrow-bounce mb-3" style={{fontSize:'2.2rem'}}>☝️</div>
+            <div className="rounded-[1.5rem] px-6 py-4 text-center mx-4"
+                 style={{background:c.surface,border:`1.5px solid ${accent}55`,
+                         boxShadow:`0 8px 32px rgba(0,0,0,.3),0 0 0 1px ${accent}22`,
+                         maxWidth:'20rem'}}>
+              <p className="font-black uppercase text-base tracking-[.08em] mb-1.5" style={{color:c.ink}}>Enter your name first</p>
+              <p className="text-sm font-medium leading-snug" style={{color:c.inkMid}}>We'll call it out when your order is ready ☕</p>
+            </div>
+          </div>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4"
+             style={{opacity:hasName?1:.3,filter:hasName?'none':'blur(3px)',
+                     transition:'opacity .45s cubic-bezier(.16,1,.3,1), filter .45s',
+                     pointerEvents:hasName?'auto':'none'}}>
         {menu.map((drink,i)=>(
           <div key={drink._key||drink.name}
                className={`rounded-[2.5rem] shadow-card p-6 flex flex-col justify-between relative overflow-hidden ${drink.soldOut?'opacity-40 pointer-events-none':''}`}
@@ -1762,7 +1849,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
                          :{background:c.priceBg,color:c.ink}}>
                   {fmtPrice(drink.price)}
                 </span>
-                {drink.soldOut&&<p className="text-[8px] font-black text-red-400 uppercase tracking-widest mt-1">SOLD OUT</p>}
+                {drink.soldOut&&<p className="text-[8px] font-black uppercase tracking-widest mt-1" style={{color:'#e84040'}}>✕ SOLD OUT</p>}
               </div>
             </div>
             <div className="flex gap-3">
@@ -1785,6 +1872,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
             <div className="display text-4xl" style={{color:c.inkFaint}}>NO DRINKS AVAILABLE</div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Bottom padding */}
@@ -1927,7 +2015,7 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,que
   return (
     <div className="kiosk-grain fixed inset-0 z-[500] flex flex-col items-center justify-center text-center px-6 success-screen-wrap cursor-pointer select-none" style={{background:c.bg,'--success-dur':`${DEFAULTS.SUCCESS_MS}ms`}} onClick={onDismiss}>
       {/* Ambient glow behind check */}
-      <div style={{position:'absolute',width:'50vw',height:'50vw',borderRadius:'50%',background:`rgba(${rA},${gA},${bA},.9)`,filter:'blur(100px)',opacity:.12,pointerEvents:'none',animation:'breatheGlow 2.5s ease-in-out infinite'}}/>
+      <div style={{position:'absolute',width:'55vw',height:'55vw',borderRadius:'50%',background:`rgba(${rA},${gA},${bA},.9)`,filter:'blur(110px)',opacity:.18,pointerEvents:'none',animation:'breatheGlow 2.5s ease-in-out infinite'}}/>
       <div className="relative" style={{animation:'successItem .5s .0s both'}}>
         {/* Burst rings + countdown drain ring */}
         <div style={{position:'absolute',inset:'-50%',borderRadius:'50%',border:`2px solid ${accentCol}`,animation:'burstRing .9s .55s cubic-bezier(0,.5,.5,1) both',pointerEvents:'none'}}/>
@@ -1941,10 +2029,11 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,que
         <AnimatedCheck size={112} color={accentCol}/>
       </div>
       {orderNumber&&(
-        <p className="font-bold uppercase tracking-widest text-sm mt-6 mb-1"
-           style={{color:c.inkFaint,animation:'successItem .4s .6s both',opacity:0}}>
-          Order #{orderNumber}
-        </p>
+        <div className="flex items-center gap-2 mt-6 mb-1" style={{animation:'successItem .4s .6s both',opacity:0}}>
+          <div style={{height:'1px',width:'1.5rem',background:c.border}}/>
+          <p className="font-black uppercase tracking-[.2em] text-xs" style={{color:accentCol}}>Order #{orderNumber}</p>
+          <div style={{height:'1px',width:'1.5rem',background:c.border}}/>
+        </div>
       )}
       <h1 className="display"
           style={{color:c.ink,fontSize:'clamp(3rem,12vw,6rem)',animation:'successItem .4s .75s both',opacity:0,
@@ -1975,7 +2064,10 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,que
       )}
       <div className="w-16 mt-5 mb-1" style={{height:'1px',background:c.border,animation:'successItem .3s .87s both',opacity:0}}/>
       <div className="rounded-[2rem] px-8 py-5 shadow-soft border border-l-[6px] mt-3 max-w-xs w-full"
-           style={{background:c.surface,borderColor:c.border,
+           style={{background:temp==='HOT'
+             ?(settings.kioskDark?'rgba(232,64,64,.08)':'rgba(232,64,64,.04)')
+             :(settings.kioskDark?'rgba(59,130,246,.08)':'rgba(59,130,246,.04)'),
+                   borderColor:c.border,
                    borderLeftColor:temp==='HOT'?'#e84040':'#3b82f6',
                    animation:'successItem .4s .9s both',opacity:0}}>
         <p className="font-black uppercase text-lg" style={{color:c.ink}}>{customer&&customer!=='Guest'?`Thanks, ${customer}!`:'Your Order'}</p>
@@ -2168,7 +2260,7 @@ const App = () => {
       {/* ═══ BARISTA MODE ═══ */}
       {data.appMode==='barista'&&(
         <div className="max-w-4xl mx-auto p-4 md:p-6 min-h-screen">
-          <BaristaNav view={baristaView} setView={v=>{setBaristaView(v);window.scrollTo({top:0,behavior:'smooth'});}} queueCount={data.orders.filter(o=>!o.ready).length} online={data.online} paused={data.pause.active}/>
+          <BaristaNav view={baristaView} setView={v=>{setBaristaView(v);window.scrollTo({top:0,behavior:'smooth'});}} queueCount={data.orders.filter(o=>!o.ready).length} online={data.online} paused={data.pause.active} accentColor={data.settings.accentColor}/>
 
           {baristaView==='queue'&&<QueueView orders={data.orders} settings={data.settings} milks={data.milks} estWait={data.estWait} shiftActive={data.shift.active} onReady={handleReady} onComplete={handleComplete} onNote={data.addNote} onEdit={(o,p)=>data.updateOrder(o,p)}/>}
           {baristaView==='add'&&<QuickAddView menu={data.menu} milks={data.milks} onPlace={data.placeOrder} accentColor={data.settings.accentColor}/>}
