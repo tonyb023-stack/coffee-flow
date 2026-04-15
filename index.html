@@ -94,18 +94,17 @@
     .kiosk-slide  { animation:kioskSlide .42s cubic-bezier(.16,1,.3,1) forwards; }
     .kiosk-back   { animation:kioskSlide .36s cubic-bezier(.16,1,.3,1) reverse forwards; }
     @keyframes drainRing   { from{stroke-dashoffset:0} to{stroke-dashoffset:283} }
-    @keyframes lockFadeIn  { from{opacity:0;transform:scale(.98)} to{opacity:1;transform:scale(1)} }
-    @keyframes nameShake   { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
-    @keyframes arrowBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-    .name-shake   { animation:nameShake .4s ease forwards; }
-    .arrow-bounce { animation:arrowBounce 1.5s ease-in-out infinite; }
+    @keyframes nameShake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
+    @keyframes nameGlow  { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.22),0 0 0 0 rgba(34,197,94,.06)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,.14),0 0 0 14px rgba(34,197,94,.04)} }
+    .name-shake    { animation:nameShake .4s ease forwards; }
+    .name-required { border-color:var(--kiosk-accent,#22c55e) !important; animation:nameGlow 2.2s ease-in-out infinite !important; }
     @keyframes sparkle { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0} }
     @keyframes fadeOutScreen { 0%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
     .success-screen-wrap { animation:fadeOutScreen var(--success-dur,5.2s) forwards; }
-    .name-pulse:focus, .name-pulse-dark:focus {
+    .name-pulse:focus, .name-pulse-dark:focus, .name-required:focus {
       animation:none !important;
       border-color:var(--kiosk-accent,#22c55e) !important;
-      box-shadow:0 0 0 4px rgba(34,197,94,.18) !important;
+      box-shadow:0 0 0 5px rgba(34,197,94,.2) !important;
     }
 
     .animate-in    { animation: slideUp  .4s cubic-bezier(.16,1,.3,1) forwards; }
@@ -772,7 +771,7 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins,mil
       <div className="flex items-start justify-between gap-3 mb-1.5">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            {position&&<span className="text-[8px] font-black w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--ink)',color:'var(--bg)'}}>{position}</span>}
+            {position&&<span className="text-[8px] font-black w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--surface-2)',color:'var(--ink-mid)',border:'1px solid var(--border)'}}>{position}</span>}
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">#{order.orderNumber??'—'}</span>
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">{fmtTime(order.startTime)}</span>
             {order.ready&&<span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-600">READY ✓</span>}
@@ -784,7 +783,6 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins,mil
             {order.flavor} · {order.milk}
           </p>
           {order.note&&<span className="inline-block mt-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full border border-emerald-100">✎ {order.note}</span>}
-          {Number(order.price)>0&&<span className="inline-block mt-1 ml-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{...S.surf2,color:'var(--ink-mid)'}}>{fmtPrice(order.price)}</span>}
         </div>
         <OrderTimer elapsed={elapsed} warnMins={WARN} lateMins={LATE}/>
       </div>
@@ -800,7 +798,7 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins,mil
       ):(
         <button onClick={()=>setShowNote(true)} className="text-[9px] font-bold uppercase tracking-widest mt-1 block text-left" style={S.faint}>
           {order.baristaNote
-            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{...S.surf2,color:'var(--ink-mid)',border:'1px solid var(--border)'}}>📝 {order.baristaNote}</span>
+            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full max-w-[200px] truncate" style={{...S.surf2,color:'var(--ink-mid)',border:'1px solid var(--border)'}}>📝 {order.baristaNote}</span>
             : '+ add note'}
         </button>
       )}
@@ -811,7 +809,8 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins,mil
           style={{borderColor:'var(--border)',...S.faint}}>Edit</button>
         {!order.ready&&(
           <button onClick={()=>onReady(order)}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-widest transition-all bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-100">
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-widest transition-all bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-100"
+            style={elapsed>=WARN?{animation:'softPulse 1.6s ease-in-out infinite'}:{}}>
             Mark Ready
           </button>
         )}
@@ -1011,7 +1010,7 @@ const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
           </button>
         ))}
       </div>
-      {filtered.length===0&&(<div className="text-center py-12"><div style={{fontSize:'2rem',opacity:.15,marginBottom:'8px'}}>{q?'🔍':'📋'}</div><p className="display text-3xl" style={S.faint}>{q?'NO RESULTS':'NO HISTORY YET'}</p></div>)}
+      {filtered.length===0&&(<div className="text-center py-12 animate-in"><div style={{fontSize:'2rem',opacity:.15,marginBottom:'8px'}}>{q||tempFilter?'🔍':'📋'}</div><p className="display text-3xl mb-1" style={S.faint}>{q||tempFilter?'NO RESULTS':'NO HISTORY YET'}</p><p className="text-xs mt-1" style={S.faint}>{q||tempFilter?'Try adjusting your filter':''}</p></div>)}
       <div className="space-y-5">
         {grouped.map(group=>(
           <div key={group.label}>
@@ -1750,16 +1749,15 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
       </div>
 
       {/* Name field */}
-      <div className="max-w-xl mx-auto px-4 mb-10">
-        {!customerName.trim()&&(
-          <p className="text-center text-[10px] font-bold uppercase tracking-[.2em] mb-3" style={{color:c.inkFaint,animation:'successItem .5s .1s both',opacity:0}}>
-            Enter your name to begin
-          </p>
-        )}
+      <div className="max-w-xl mx-auto px-4 mb-8">
+        <p className="text-center text-[10px] font-bold uppercase tracking-[.25em] mb-3"
+           style={{color:hasName?'transparent':accent,opacity:hasName?0:0.9,transition:'opacity .4s',pointerEvents:'none'}}>
+          ↑ Enter your name to order
+        </p>
         <div className="relative">
-          <input ref={nameInputRef} type="text" placeholder="Your name"
+          <input ref={nameInputRef} type="text" placeholder="What's your name?"
             autoComplete="off"
-            className={`w-full px-6 py-5 rounded-[2rem] text-2xl font-black text-center outline-none shadow-card ${shakeName?'name-shake':''} ${dark?'name-pulse-dark':'name-pulse'}`}
+            className={`w-full px-6 py-5 rounded-[2rem] text-2xl font-black text-center outline-none shadow-card ${shakeName?'name-shake':''} ${!hasName?'name-required':dark?'name-pulse-dark':'name-pulse'}`}
             style={{background:c.surface,color:c.ink,textTransform:'capitalize'}}
             value={customerName}
             onChange={e=>onNameChange(e.target.value)}
@@ -1774,7 +1772,12 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
         </div>
       </div>
 
-      {/* Live wait indicator — shown when there's any queue */}
+      {/* Wait state indicator */}
+      {queueCount===0&&hasName&&(
+        <div className="text-center mb-3 px-4 animate-in">
+          <p className="text-[10px] font-bold uppercase tracking-[.22em]" style={{color:accent,opacity:.7}}>✓ No wait right now</p>
+        </div>
+      )}
       {queueCount>0&&!isBusy&&(
         <div className="text-center mb-3 px-4">
           <p className="text-xs font-bold uppercase tracking-widest" style={{color:c.inkFaint}}>~ {fmtMins(estWait)} wait</p>
@@ -1787,7 +1790,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
           <p className="font-black uppercase tracking-[.18em] text-base" style={{color:accent}}>
             Hi, {customerName.trim().replace(/\b\w/g,c=>c.toUpperCase())}! 👋
           </p>
-          <p className="text-xs font-medium mt-0.5 uppercase tracking-widest" style={{color:c.inkFaint}}>Choose your drink below</p>
+          <p className="text-xs font-medium mt-0.5 uppercase tracking-widest" style={{color:c.inkFaint}}>Select a drink below</p>
         </div>
       )}
 
@@ -1801,21 +1804,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
 
       {/* Drink grid — locked behind overlay until name entered */}
       <div className="relative max-w-4xl mx-auto px-4">
-        {!hasName&&(
-          <div onClick={focusName}
-               className="absolute inset-0 z-10 flex flex-col items-center justify-center cursor-pointer rounded-[2rem] select-none"
-               style={{backdropFilter:'blur(5px)',WebkitBackdropFilter:'blur(5px)',
-                       background:'rgba(0,0,0,.22)',animation:'lockFadeIn .35s ease forwards'}}>
-            <div className="arrow-bounce mb-3" style={{fontSize:'2.2rem'}}>☝️</div>
-            <div className="rounded-[1.5rem] px-6 py-4 text-center mx-4"
-                 style={{background:c.surface,border:`1.5px solid ${accent}55`,
-                         boxShadow:`0 8px 32px rgba(0,0,0,.3),0 0 0 1px ${accent}22`,
-                         maxWidth:'20rem'}}>
-              <p className="font-black uppercase text-base tracking-[.08em] mb-1.5" style={{color:c.ink}}>Enter your name first</p>
-              <p className="text-sm font-medium leading-snug" style={{color:c.inkMid}}>We'll call it out when your order is ready ☕</p>
-            </div>
-          </div>
-        )}
+        {!hasName&&<div onClick={focusName} className="absolute inset-0 z-10 cursor-pointer" style={{borderRadius:'2rem'}}/>}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4"
              style={{opacity:hasName?1:.3,filter:hasName?'none':'blur(3px)',
                      transition:'opacity .45s cubic-bezier(.16,1,.3,1), filter .45s',
@@ -1951,7 +1940,7 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
                 {m.name}
               </button>
             ))}
-            {available.length===0&&<p className="py-6 font-bold uppercase text-sm" style={{color:c.inkFaint}}>No milk options available</p>}
+            {available.length===0&&<p className="py-6 font-bold uppercase text-sm" style={{color:c.inkFaint}}>No milk options — please see the barista</p>}
           </div>
         </div>
 
