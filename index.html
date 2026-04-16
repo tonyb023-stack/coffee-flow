@@ -95,34 +95,25 @@
     .kiosk-back   { animation:kioskSlide .36s cubic-bezier(.16,1,.3,1) reverse forwards; }
     @keyframes drainRing   { from{stroke-dashoffset:0} to{stroke-dashoffset:283} }
     @keyframes nameShake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
-    /* nameGlow: subtle at rest, gentle pulse at 50% — uses accent RGB vars */
+    /* nameGlow: uses pre-computed CSS vars --ngc0..4 injected by KioskMenuView */
     @keyframes nameGlow {
-      0%,100% {
-        border-color: rgba(var(--ka-r,34),var(--ka-g,197),var(--ka-b,94),.55);
-        box-shadow:   0 0 0 0   rgba(var(--ka-r,34),var(--ka-g,197),var(--ka-b,94),.0),
-                      0 0 18px  rgba(var(--ka-r,34),var(--ka-g,197),var(--ka-b,94),.06);
-      }
-      50% {
-        border-color: rgba(var(--ka-r,34),var(--ka-g,197),var(--ka-b,94),1);
-        box-shadow:   0 0 0 6px rgba(var(--ka-r,34),var(--ka-g,197),var(--ka-b,94),.12),
-                      0 0 28px  rgba(var(--ka-r,34),var(--ka-g,197),var(--ka-b,94),.14);
-      }
+      0%,100% { border-color:var(--ngc0,rgba(34,197,94,.5)); box-shadow:0 0 0 0 var(--ngc1,rgba(34,197,94,0)), 0 0 16px var(--ngc1,rgba(34,197,94,.05)); }
+      50%     { border-color:var(--ngc2,rgba(34,197,94,1));  box-shadow:0 0 0 7px var(--ngc3,rgba(34,197,94,.1)), 0 0 28px var(--ngc4,rgba(34,197,94,.12)); }
     }
     .name-shake    { animation:nameShake .4s ease forwards; }
     .name-required {
       border-width: 3px !important;
-      border-color: rgba(var(--ka-r,34),var(--ka-g,197),var(--ka-b,94),.7) !important;
-      animation:    nameGlow 2.6s ease-in-out infinite !important;
+      border-color: var(--ngc0,rgba(34,197,94,.6)) !important;
+      animation:    nameGlow 2.8s ease-in-out infinite !important;
     }
     @keyframes sparkle { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0} }
     @keyframes fadeOutScreen { 0%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
     .success-screen-wrap { animation:fadeOutScreen var(--success-dur,5.2s) forwards; }
     .name-pulse:focus, .name-pulse-dark:focus, .name-required:focus {
       animation:none !important;
-      border-color:var(--kiosk-accent,#22c55e) !important;
+      border-color:var(--ngc2,var(--kiosk-accent,#22c55e)) !important;
       border-width:3px !important;
-      box-shadow:0 0 0 6px rgba(var(--ka-r,34),var(--ka-g,197),var(--ka-b,94),.18),
-                 0 0 28px rgba(var(--ka-r,34),var(--ka-g,197),var(--ka-b,94),.1) !important;
+      box-shadow:0 0 0 6px var(--ngc3,rgba(34,197,94,.1)), 0 0 28px var(--ngc4,rgba(34,197,94,.12)) !important;
     }
 
     .animate-in    { animation: slideUp  .4s cubic-bezier(.16,1,.3,1) forwards; }
@@ -670,10 +661,11 @@ const OrderTimer = ({elapsed, warnMins, lateMins}) => {
 
 /* Modal — uses CSS vars → dark mode works automatically */
 const Modal = ({children,onClose}) => (
-  <div className="fixed inset-0 z-[600] flex items-center justify-center p-5"
-       style={{background:'rgba(0,0,0,.65)',backdropFilter:'blur(14px)'}}
+  <div className="fixed inset-0 z-[600] flex items-start justify-center p-4 pt-10 overflow-y-auto"
+       style={{background:'rgba(0,0,0,.7)',backdropFilter:'blur(14px)'}}
        onClick={e=>{if(e.target===e.currentTarget&&onClose)onClose();}}>
-    <div className="rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-lift animate-pop border" style={S.surf}>
+    <div className="rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-lift animate-pop border relative my-auto" style={S.surf}>
+      {onClose&&<button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-sm font-black transition-all hover:opacity-70" style={{...S.surf2,color:'var(--ink-mid)'}}>✕</button>}
       {children}
     </div>
   </div>
@@ -756,14 +748,13 @@ const BaristaNav = ({view,setView,queueCount,online,paused,accentColor}) => (
 );
 
 /* Queue card — single elapsed interval, passes to OrderTimer, supports configurable thresholds */
-const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins,milks,position}) => {
+const QueueCard = ({order,onReady,onComplete,onNote,onEdit,onEditOpen,warnMins,lateMins,milks,position}) => {
   const WARN = warnMins || DEFAULTS.WARN_MINS;
   const LATE = lateMins || DEFAULTS.LATE_MINS;
   const [showNote,setShowNote] = useState(false);
   const [noteVal, setNoteVal]  = useState(order.baristaNote||'');
   /* Sync note input only when not actively editing (avoids clobbering in-progress input) */
   useEffect(()=>{ if(!showNote) setNoteVal(order.baristaNote||''); },[order.baristaNote, showNote]);
-  const [showEdit,setShowEdit] = useState(false);
   const [mounted, setMounted]  = useState(false);
   useEffect(()=>{ const id=setTimeout(()=>setMounted(true),10); return()=>clearTimeout(id); },[]);
 
@@ -819,7 +810,7 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins,mil
               ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full max-w-[180px] truncate" style={{...S.surf2,color:'var(--ink-mid)',border:'1px solid var(--border)'}}>📝 {order.baristaNote}</span>
               : '+ note'}
           </button>
-          <button onClick={()=>setShowEdit(true)} className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>Edit</button>
+          <button onClick={()=>onEditOpen&&onEditOpen(order._key)} className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>Edit</button>
         </div>
       )}
 
@@ -836,25 +827,38 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,warnMins,lateMins,mil
           style={order.ready?{}:{width:'3.5rem',background:'var(--ink)',color:'var(--bg)'}}>✓</button>
       </div>
 
-      {showEdit&&<EditOrderModal order={order} milks={milks||[]} onSave={p=>{onEdit(order,p);setShowEdit(false);}} onClose={()=>setShowEdit(false)}/>}
     </div>
   );
 };
 
-const EditOrderModal = ({order,milks,onSave,onClose}) => {
+const EditOrderModal = ({order,milks,menu,onSave,onClose}) => {
   const [customer,setCustomer]=useState(order.customer);
   const [note,setNote]=useState(order.note||'');
   const [temp,setTemp]=useState(order.temp);
   const [milk,setMilk]=useState(order.milk||'');
+  const [flavor,setFlavor]=useState(order.flavor||'');
+  const drinkNames=menu&&menu.length>0?menu.map(d=>d.name).filter(Boolean):null;
   return (
     <Modal onClose={onClose}>
       <h2 className="display text-3xl mb-4" style={S.ink}>EDIT ORDER</h2>
-      <div className="text-center mb-4 py-2.5 rounded-2xl" style={S.surf2}>
-        <p className="display text-2xl leading-tight" style={S.ink}>{order.flavor}</p>
-      </div>
+      {drinkNames?(
+        <div className="mb-4 text-left">
+          <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Drink</label>
+          <div className="grid grid-cols-2 gap-1.5">
+            {drinkNames.map(d=>(<button key={d} onClick={()=>setFlavor(d)}
+              className="py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide transition-all"
+              style={flavor===d?{background:'var(--ink)',color:'var(--bg)'}:{...S.surf2,...S.ink}}>{d}</button>))}
+          </div>
+        </div>
+      ):(
+        <div className="mb-4 text-left">
+          <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Drink</label>
+          <input value={flavor} onChange={e=>setFlavor(e.target.value)} className="w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none" style={S.inp}/>
+        </div>
+      )}
       <div className="space-y-3 text-left">
         <div><label className="text-[9px] font-bold uppercase tracking-widest block mb-1" style={S.faint}>Name</label>
-          <input value={customer} onChange={e=>setCustomer(e.target.value)} onKeyDown={e=>e.key==='Enter'&&onSave({customer,note,temp,milk})} className="w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none" style={S.inp}/></div>
+          <input value={customer} onChange={e=>setCustomer(e.target.value)} onKeyDown={e=>e.key==='Enter'&&onSave({customer,note,temp,milk,flavor})} className="w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none" style={S.inp}/></div>
         <div><label className="text-[9px] font-bold uppercase tracking-widest block mb-1" style={S.faint}>Temperature</label>
           <div className="flex gap-2">
             {['HOT','ICED'].map(t=>(
@@ -869,23 +873,25 @@ const EditOrderModal = ({order,milks,onSave,onClose}) => {
               style={milk===m.name?{background:'var(--ink)',color:'var(--bg)'}:{...S.surf2,...S.ink}}>{m.name}</button>))}
           </div></div>)}
         <div><label className="text-[9px] font-bold uppercase tracking-widest block mb-1" style={S.faint}>Special Request</label>
-          <input value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>e.key==='Enter'&&onSave({customer,note,temp,milk})} className="w-full px-4 py-3 rounded-xl text-sm font-medium border outline-none" style={S.inp}/></div>
+          <input value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>e.key==='Enter'&&onSave({customer,note,temp,milk,flavor})} className="w-full px-4 py-3 rounded-xl text-sm font-medium border outline-none" style={S.inp}/></div>
       </div>
       <div className="flex gap-3 mt-5">
         <button onClick={onClose} className="flex-1 py-4 rounded-2xl font-bold text-sm border" style={S.surf}>Cancel</button>
-        <button onClick={()=>onSave({customer,note,temp,milk})} className="flex-1 py-4 rounded-2xl font-bold text-sm" style={{background:'var(--ink)',color:'var(--bg)'}}>Save Changes</button>
+        <button onClick={()=>onSave({customer,note,temp,milk,flavor})} className="flex-1 py-4 rounded-2xl font-bold text-sm" style={{background:'var(--ink)',color:'var(--bg)'}}>Save Changes</button>
       </div>
     </Modal>
   );
 };
 
 /* Ready orders pinned at top, pending below */
-const QueueView = ({orders,settings,milks,onReady,onComplete,onNote,onEdit,estWait,shiftActive}) => {
+const QueueView = ({orders,settings,milks,menu,onReady,onComplete,onNote,onEdit,estWait,shiftActive}) => {
   const warn     = settings.warnAt||DEFAULTS.QUEUE_WARN;
   const warnMins = settings.warnMins||DEFAULTS.WARN_MINS;
   const lateMins = settings.lateMins||DEFAULTS.LATE_MINS;
   const ready    = orders.filter(o=>o.ready);
   const pending  = orders.filter(o=>!o.ready);
+  const [editingKey,setEditingKey]=useState(null);
+  const editingOrder=orders.find(o=>o._key===editingKey)||null;
   return (
     <div className="space-y-2.5 animate-in">
       {pending.length>=warn&&(
@@ -909,11 +915,12 @@ const QueueView = ({orders,settings,milks,onReady,onComplete,onNote,onEdit,estWa
       {ready.length>0&&(
         <div>
           <p className="text-[9px] font-bold uppercase tracking-widest mb-2 px-1" style={{color:settings.accentColor||'#22c55e'}}>✓ READY FOR PICKUP <span className="opacity-60">({ready.length})</span></p>
-          {ready.map(o=><QueueCard key={o._key} order={o} milks={milks} warnMins={warnMins} lateMins={lateMins} onReady={onReady} onComplete={onComplete} onNote={onNote} onEdit={onEdit}/>)}
+          {ready.map(o=><QueueCard key={o._key} order={o} milks={milks} warnMins={warnMins} lateMins={lateMins} onReady={onReady} onComplete={onComplete} onNote={onNote} onEdit={onEdit} onEditOpen={k=>setEditingKey(k)}/>)}
           {ready.length>0&&pending.length>0&&<div className="border-t my-3" style={{borderColor:'var(--border)'}}/>}
         </div>
       )}
-      {pending.map((o,i)=><QueueCard key={o._key} order={o} position={i+1} milks={milks} warnMins={warnMins} lateMins={lateMins} onReady={onReady} onComplete={onComplete} onNote={onNote} onEdit={onEdit}/>)}
+      {pending.map((o,i)=><QueueCard key={o._key} order={o} position={i+1} milks={milks} warnMins={warnMins} lateMins={lateMins} onReady={onReady} onComplete={onComplete} onNote={onNote} onEdit={onEdit} onEditOpen={k=>setEditingKey(k)}/>)}
+      {editingOrder&&<EditOrderModal order={editingOrder} milks={milks||[]} menu={menu||[]} onSave={p=>{onEdit(editingOrder,p);setEditingKey(null);}} onClose={()=>setEditingKey(null)}/>}
     </div>
   );
 };
@@ -937,7 +944,7 @@ const HistoryDetailModal = ({order,onClose,onRequeue,onSaveNote}) => {
       <p className="text-sm font-bold mb-3" style={S.mid}>{order.flavor} · {order.milk}</p>
       {order.note&&<p className="text-xs mb-3 px-3 py-1.5 rounded-full inline-block bg-emerald-50 text-emerald-600 font-bold">✎ {order.note}</p>}
       <div className="mt-2">
-        <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Barista Note</label>
+        <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Barista Note</label>
         <div className="flex gap-2">
           <input value={noteVal} onChange={e=>setNoteVal(e.target.value)}
             placeholder="Add a note…" className="flex-1 px-3 py-2.5 rounded-xl text-xs font-medium border outline-none"
@@ -1379,22 +1386,22 @@ const SettingsView = ({
         </div>
         <div className="space-y-4">
           <div>
-            <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Kiosk Display Name</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Kiosk Display Name</label>
             <input value={settings.eventName||''} onChange={e=>onUpdateSettings({eventName:e.target.value})} placeholder={DEFAULTS.APP_NAME} className={inp} style={S.inp}/>
           </div>
           <div>
-            <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Tagline</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Tagline</label>
             <input value={settings.tagline||''} onChange={e=>onUpdateSettings({tagline:e.target.value})} placeholder={DEFAULTS.TAGLINE} className={`${inp} font-medium`} style={S.inp}/>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Exit PIN (4-digit)</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Exit PIN (4-digit)</label>
               <input value={settings.pin||''} type="password" maxLength={4}
                 onChange={e=>{if(/^\d*$/.test(e.target.value)) onUpdateSettings({pin:e.target.value});}}
                 placeholder="1234" className={`${inp} text-center tracking-[.5em]`} style={S.inp}/>
             </div>
             <div>
-              <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Expected Guests</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Expected Guests</label>
               <input value={settings.guestCount||''} type="number" min="0"
                 onChange={e=>onUpdateSettings({guestCount:Number(e.target.value)||0})}
                 placeholder="0" className={`${inp} text-center`} style={S.inp}/>
@@ -1402,35 +1409,35 @@ const SettingsView = ({
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Warn (mins)</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Warn (mins)</label>
               <input value={settings.warnMins||DEFAULTS.WARN_MINS} type="number" min="1" max="30"
                 onChange={e=>onUpdateSettings({warnMins:Number(e.target.value)||8})}
                 className={`${inp} text-center`} style={S.inp}/>
-              <p className="text-[8px] mt-1 leading-tight" style={S.faint}>Amber ring on queue card</p>
+              <p className="text-[9px] mt-1 leading-tight" style={S.faint}>Amber ring on queue card</p>
             </div>
             <div>
-              <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Late (mins)</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Late (mins)</label>
               <input value={settings.lateMins||DEFAULTS.LATE_MINS} type="number" min="1" max="60"
                 onChange={e=>onUpdateSettings({lateMins:Number(e.target.value)||12})}
                 className={`${inp} text-center`} style={S.inp}/>
-              <p className="text-[8px] mt-1 leading-tight" style={S.faint}>Red ring + LATE badge</p>
+              <p className="text-[9px] mt-1 leading-tight" style={S.faint}>Red ring + LATE badge</p>
             </div>
             <div>
-              <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Queue Warn</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Queue Warn</label>
               <input value={settings.warnAt||DEFAULTS.QUEUE_WARN} type="number" min="2" max="30"
                 onChange={e=>onUpdateSettings({warnAt:Number(e.target.value)||6})}
                 className={`${inp} text-center`} style={S.inp}/>
-              <p className="text-[8px] mt-1 leading-tight" style={S.faint}>Kiosk busy mode triggers</p>
+              <p className="text-[9px] mt-1 leading-tight" style={S.faint}>Kiosk busy mode triggers</p>
             </div>
           </div>
           <div>
-            <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Kiosk Idle (secs)</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Kiosk Idle (secs)</label>
             <input value={settings.idleSecs||45} type="number" min="10" max="300"
               onChange={e=>onUpdateSettings({idleSecs:Number(e.target.value)||45})}
               className={`${inp} text-center`} style={S.inp}/>
           </div>
           <div>
-            <label className="text-[9px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Kiosk Accent Colour</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={S.faint}>Kiosk Accent Colour</label>
             <div className="flex flex-wrap gap-2 mb-3">
               {['#22c55e','#3b82f6','#f59e0b','#e84040','#8b5cf6','#ec4899','#06b6d4','#0f0f0f'].map(col=>(
                 <button key={col} onClick={()=>onUpdateSettings({accentColor:col})}
@@ -1754,8 +1761,11 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
   /* Parse accent hex → r,g,b for CSS variable injection */
   const raw=accent; const a=raw.length===4?`#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`:raw;
   const kaR=parseInt(a.slice(1,3),16),kaG=parseInt(a.slice(3,5),16),kaB=parseInt(a.slice(5,7),16);
+  const _rgb=`${kaR},${kaG},${kaB}`;
+  const ngc0=`rgba(${_rgb},.55)`,ngc1=`rgba(${_rgb},0)`,ngc2=`rgba(${_rgb},1)`,
+        ngc3=`rgba(${_rgb},.1)`, ngc4=`rgba(${_rgb},.12)`;
   return (
-    <div className="kiosk-grain min-h-screen pb-28" style={{background:c.bg,'--kiosk-accent':accent,'--kiosk-border':c.border,'--ka-r':kaR,'--ka-g':kaG,'--ka-b':kaB}}>
+    <div className="kiosk-grain min-h-screen pb-28" style={{background:c.bg,'--kiosk-accent':accent,'--kiosk-border':c.border,'--ka-r':kaR,'--ka-g':kaG,'--ka-b':kaB,'--ngc0':ngc0,'--ngc1':ngc1,'--ngc2':ngc2,'--ngc3':ngc3,'--ngc4':ngc4}}>
       <div onClick={onExitTap} style={{position:'fixed',top:0,right:0,width:120,height:120,zIndex:10000}}/>
       {isBusy&&estWait>2&&(
         <div className="fixed top-4 left-4 z-[50] flex items-center gap-1.5 px-3 py-2 rounded-full animate-in"
@@ -2271,7 +2281,7 @@ const App = () => {
         <div className="max-w-4xl mx-auto p-4 md:p-6 min-h-screen">
           <BaristaNav view={baristaView} setView={v=>{setBaristaView(v);window.scrollTo({top:0,behavior:'smooth'});}} queueCount={data.orders.filter(o=>!o.ready).length} online={data.online} paused={data.pause.active} accentColor={data.settings.accentColor}/>
 
-          {baristaView==='queue'&&<QueueView orders={data.orders} settings={data.settings} milks={data.milks} estWait={data.estWait} shiftActive={data.shift.active} onReady={handleReady} onComplete={handleComplete} onNote={data.addNote} onEdit={(o,p)=>data.updateOrder(o,p)}/>}
+          {baristaView==='queue'&&<QueueView orders={data.orders} settings={data.settings} milks={data.milks} menu={data.menu} estWait={data.estWait} shiftActive={data.shift.active} onReady={handleReady} onComplete={handleComplete} onNote={data.addNote} onEdit={(o,p)=>data.updateOrder(o,p)}/>}
           {baristaView==='add'&&<QuickAddView menu={data.menu} milks={data.milks} onPlace={data.placeOrder} accentColor={data.settings.accentColor}/>}
           {baristaView==='history'&&<HistoryView history={data.history} onClear={()=>setShowClearModal(true)} onSaveNote={data.addHistoryNote} onRequeue={o=>{ data.placeOrder({customer:o.customer,flavor:o.flavor,price:o.price||0,temp:o.temp,milk:o.milk,note:o.note||''}); setBaristaView('queue'); }}/>}
           {baristaView==='stats'&&<StatsView shift={data.shift} shiftStats={data.shiftStats} settings={data.settings} onStartShift={data.startShift} onEndShiftRequest={()=>setShowShiftModal(true)} exportCSV={data.exportCSV} onGenerateSummaryCard={handleSummaryCard} queueDepth={data.orders.filter(o=>!o.ready).length}/>}
