@@ -563,7 +563,7 @@ const useAppData = () => {
   const startShift = useCallback(()=>{ Db.startShift(); Db.resetCounter(); }, []);
 
   /* Menu helpers */
-  const addMenuItem        = ()      => Db.addMenuItem({name:'',price:5,soldOut:false,featured:false,description:''});
+  const addMenuItem        = ()      => Db.addMenuItem({name:'',price:5,soldOut:false,featured:false,description:'',temps:['HOT','ICED']});
   const updateMenuItem     = (k,p)   => Db.updateMenuItem(k,p);
   const deleteMenuItem     = k       => Db.deleteMenuItem(k);
   const toggleDrinkSoldOut = item    => Db.updateMenuItem(item._key,{soldOut:!item.soldOut});
@@ -878,7 +878,7 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,onEditOpen,warnMins,l
               <input autoFocus value={noteVal} onChange={e=>setNoteVal(e.target.value)}
                 placeholder="Barista note…" className="flex-1 px-4 py-2 rounded-xl text-xs font-medium border outline-none" style={S.inp}
                 onKeyDown={e=>{if(e.key==='Enter')saveNote();if(e.key==='Escape'){setNoteVal(order.baristaNote||'');setShowNote(false);}}}/>
-              <button onClick={saveNote} className="px-4 rounded-xl text-xs font-bold" style={{background:'var(--ink)',color:'var(--bg)'}}>Save</button>
+              <button onClick={saveNote} className="px-4 py-2 rounded-xl text-xs font-bold flex-shrink-0" style={{background:'var(--ink)',color:'var(--bg)'}}>Save</button>
               <button onClick={()=>setShowNote(false)} className="px-3 rounded-xl text-xs" style={S.faint}>✕</button>
             </div>
           ):(
@@ -1309,6 +1309,8 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
   /* Auto-select single drink/milk so barista flow is fast at busy events */
   useEffect(()=>{ if(avail.length===1&&!drink) setDrink(avail[0]); },[avail.length]);
   useEffect(()=>{ if(availMilks.length===1&&!milk) setMilk(availMilks[0].name); },[availMilks.length]);
+  /* Auto-select temp when drink only supports one */
+  useEffect(()=>{ if(drink){ const at=drink.temps?.length?drink.temps:['HOT','ICED']; if(at.length===1) setTemp(at[0]); } },[drink?._key]);
   if(placed) return (
     <div className="rounded-[2.5rem] p-10 shadow-soft border text-center animate-pop" style={S.surf}>
       <div className="flex justify-center mb-3"><AnimatedCheck size={72} color={accentColor||'#22c55e'}/></div>
@@ -1335,15 +1337,17 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
         ))}
         {avail.length===0&&<p className="col-span-2 text-xs py-2" style={S.faint}>No drinks available</p>}
       </div>
-      {drink&&<div className="animate-in mb-4">
-        <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={S.faint}>Temp</p>
-        <div className="flex gap-2">
-          {['HOT','ICED'].map(t=>(
-            <button key={t} onClick={()=>setTemp(t)}
-              className={`flex-1 py-3.5 rounded-2xl font-black text-base transition-all ${temp===t?(t==='HOT'?'bg-red-500 text-white':'bg-blue-500 text-white'):(t==='HOT'?'bg-red-50 text-red-400':'bg-blue-50 text-blue-400')}`}>{t}</button>
-          ))}
+      {drink&&(()=>{ const at=drink.temps?.length?drink.temps:['HOT','ICED']; return at.length>1&&(
+        <div className="animate-in mb-4">
+          <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={S.faint}>Temp</p>
+          <div className="flex gap-2">
+            {at.map(t=>(
+              <button key={t} onClick={()=>setTemp(t)}
+                className={`flex-1 py-3.5 rounded-2xl font-black text-base transition-all ${temp===t?(t==='HOT'?'bg-red-500 text-white':'bg-blue-500 text-white'):(t==='HOT'?'bg-red-50 text-red-400':'bg-blue-50 text-blue-400')}`}>{t}</button>
+            ))}
+          </div>
         </div>
-      </div>}
+      ); })()}
       {temp&&<div className="animate-in mb-4">
         <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={S.faint}>Milk</p>
         <div className="grid grid-cols-2 gap-2">
@@ -1629,6 +1633,21 @@ const SettingsView = ({
                   className="w-full px-3 py-2.5 rounded-xl text-xs font-bold uppercase outline-none border" style={{background:'var(--surface)',borderColor:'var(--border)',color:'var(--ink)'}}/>
                 <input placeholder="Short description (optional)" value={d.description||''} onChange={e=>onUpdateDrink(d._key,{description:e.target.value})}
                   className="w-full px-3 py-2 rounded-xl text-[10px] font-medium outline-none border" style={{background:'var(--surface)',borderColor:'var(--border)',color:'var(--ink-mid)'}}/>
+                <div className="flex gap-1.5 pt-0.5">
+                  {['HOT','ICED'].map(t=>{
+                    const cur=d.temps?.length?d.temps:['HOT','ICED'];
+                    const on=cur.includes(t);
+                    return (<button key={t} onClick={()=>{
+                      if(on&&cur.length===1) return;
+                      onUpdateDrink(d._key,{temps:on?cur.filter(x=>x!==t):[...cur,t]});
+                    }}
+                      title={on?`Disable ${t}`:`Enable ${t}`}
+                      className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all"
+                      style={on?(t==='HOT'?{background:'rgba(232,64,64,.18)',color:'#e84040',border:'1px solid rgba(232,64,64,.3)'}:{background:'rgba(59,130,246,.18)',color:'#3b82f6',border:'1px solid rgba(59,130,246,.3)'}):{...S.surf2,color:'var(--ink-faint)',border:'1px solid var(--border)',opacity:.45}}>
+                      {t==='HOT'?'🔥 Hot':'🧊 Iced'}
+                    </button>);
+                  })}
+                </div>
               </div>
               <div className="flex items-center px-2 rounded-xl border" style={{background:'var(--surface)',borderColor:'var(--border)'}}>
                 <span className="text-xs font-bold" style={S.faint}>$</span>
@@ -1711,6 +1730,7 @@ const ShiftEndModal=({stats,onConfirm,onCancel,activeOrders=0,shiftStats})=>(
       {stats.perHour&&stats.perHour!=='—'&&<p className="text-sm font-bold" style={S.mid}>⚡ {stats.perHour} drinks/hr</p>}
       {stats.avgRevenue&&stats.avgRevenue!=='—'&&stats.count>0&&<p className="text-sm font-bold" style={S.mid}>💰 ${stats.avgRevenue} avg per drink</p>}
       {stats.durationStr&&stats.durationStr!=='—'&&<p className="text-sm font-bold" style={S.mid}>🕐 {stats.durationStr} shift duration</p>}
+      {stats.topDrink&&stats.topDrink!=='—'&&<p className="text-sm font-bold" style={S.mid}>⭐ {stats.topDrink} was most popular</p>}
     </div>
     <div className="flex flex-col gap-3">
       <button onClick={onConfirm} className="bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-sm">Confirm End Shift</button>
@@ -1925,7 +1945,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
       {/* Personal greeting when name entered */}
       {hasName&&(
         <div className="text-center mb-4 px-4" style={{animation:'greetIn .4s cubic-bezier(.16,1,.3,1) forwards'}}>
-          <p className="font-black uppercase tracking-[.18em] text-base" style={{color:accent}}>
+          <p className="font-black uppercase tracking-[.15em] text-lg" style={{color:accent}}>
             Hi, {customerName.trim().replace(/\b\w/g,c=>c.toUpperCase())}
           </p>
           <p className="text-xs font-medium mt-0.5 uppercase tracking-widest" style={{color:c.inkFaint}}>Choose your drink below</p>
@@ -1950,7 +1970,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
         {menu.map((drink,i)=>(
           <div key={drink._key||drink.name}
                className={`rounded-[2.5rem] shadow-card p-6 flex flex-col justify-between relative overflow-hidden ${drink.soldOut?'opacity-40 pointer-events-none':''}`}
-               style={{background:c.surface,border:drink.featured&&!drink.soldOut?`1.5px solid ${accent}44`:`1px solid ${c.border}`,boxShadow:drink.featured&&!drink.soldOut?`0 8px 32px rgba(0,0,0,.12),0 0 0 1px ${accent}22`:undefined,
+               style={{background:drink.featured&&!drink.soldOut?`color-mix(in srgb,${accent} 4%,${c.surface})`:c.surface,border:drink.featured&&!drink.soldOut?`1.5px solid ${accent}44`:`1px solid ${c.border}`,boxShadow:drink.featured&&!drink.soldOut?`0 8px 32px rgba(0,0,0,.12),0 0 0 1px ${accent}22`:undefined,
                        animation:`slideUp .55s cubic-bezier(.16,1,.3,1) ${i*80}ms both`,
                        transition:'transform .2s cubic-bezier(.16,1,.3,1), box-shadow .2s'}}
                onMouseEnter={e=>{if(!drink.soldOut){e.currentTarget.style.transform='scale(1.015)';e.currentTarget.style.boxShadow='0 16px 48px rgba(0,0,0,.14),0 4px 16px rgba(0,0,0,.08)';}}}
@@ -1967,7 +1987,11 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
                   {drink.name}
                 </h3>
                 {drink.description&&<p className="text-sm font-medium mt-1 leading-snug" style={{color:c.inkMid,opacity:.8}}>{drink.description}</p>}
-
+                {(()=>{ const at=drink.temps?.length?drink.temps:['HOT','ICED']; return at.length===1&&!drink.soldOut&&(
+                  <p className="text-[10px] font-black uppercase tracking-widest mt-1.5" style={{color:at[0]==='HOT'?'#e84040':'#3b82f6',opacity:.85}}>
+                    {at[0]==='HOT'?'Hot only':'Iced only'}
+                  </p>
+                ); })()}
               </div>
               <div className="text-right ml-3 flex-shrink-0">
                 {Number(drink.price)>0&&(
@@ -1979,18 +2003,22 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
                 {drink.soldOut&&<p className="text-[8px] font-black uppercase tracking-widest mt-1" style={{color:'#e84040'}}>✕ SOLD OUT</p>}
               </div>
             </div>
-            <div className="flex gap-3">
-              <button disabled={drink.soldOut} onClick={()=>onSelectDrink(drink,'HOT')}
-                className="flex-1 py-6 rounded-[1.5rem] font-black text-xl text-white btn-hot transition-all"
-                style={drink.soldOut?{background:c.surface2,color:c.inkFaint,boxShadow:'none',cursor:'not-allowed'}:{}}>
-                HOT
-              </button>
-              <button disabled={drink.soldOut} onClick={()=>onSelectDrink(drink,'ICED')}
-                className="flex-1 py-6 rounded-[1.5rem] font-black text-xl text-white btn-iced transition-all"
-                style={drink.soldOut?{background:c.surface2,color:c.inkFaint,boxShadow:'none',cursor:'not-allowed'}:{}}>
-                ICED
-              </button>
-            </div>
+            {(()=>{
+              const at=drink.temps?.length?drink.temps:['HOT','ICED'];
+              const hotOk=at.includes('HOT'), icedOk=at.includes('ICED');
+              const ghost={background:c.surface2,color:c.inkFaint,opacity:.22,boxShadow:'none',cursor:'not-allowed'};
+              const dis={background:c.surface2,color:c.inkFaint,boxShadow:'none',cursor:'not-allowed'};
+              return (
+                <div className="flex gap-3">
+                  <button disabled={drink.soldOut||!hotOk} onClick={()=>onSelectDrink(drink,'HOT')}
+                    className="flex-1 py-6 rounded-[1.5rem] font-black text-xl text-white btn-hot transition-all"
+                    style={drink.soldOut?dis:!hotOk?ghost:{}}>HOT</button>
+                  <button disabled={drink.soldOut||!icedOk} onClick={()=>onSelectDrink(drink,'ICED')}
+                    className="flex-1 py-6 rounded-[1.5rem] font-black text-xl text-white btn-iced transition-all"
+                    style={drink.soldOut?dis:!icedOk?ghost:{}}>ICED</button>
+                </div>
+              );
+            })()}
           </div>
         ))}
         {menu.length===0&&(
@@ -2062,7 +2090,7 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-6 justify-center">
             <div style={{height:'1px',width:'2.5rem',background:c.border}}/>
-            <p className="font-black uppercase text-sm tracking-[.2em]" style={{color:c.inkMid}}>Choose your milk</p>
+            <p className="font-black uppercase text-sm tracking-[.2em]" style={{color:c.inkMid}}>Milk preference</p>
             <div style={{height:'1px',width:'2.5rem',background:c.border}}/>
           </div>
           <div className="space-y-3">
