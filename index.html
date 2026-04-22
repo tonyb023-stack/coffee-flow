@@ -76,8 +76,7 @@
     @keyframes successItem { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
     @keyframes expandDown  { from{opacity:0;transform:translateY(-8px) scaleY(.95)} to{opacity:1;transform:translateY(0) scaleY(1)} }
     .edit-expand { animation:expandDown .28s cubic-bezier(.16,1,.3,1) forwards; transform-origin:top; }
-    @keyframes progFill { from{width:0} to{width:var(--pw,0%)} }
-    .prog-fill { animation:progFill .65s cubic-bezier(.16,1,.3,1) forwards; }
+
 
     /* ── Kiosk premium animations ───────────── */
     @keyframes floatY      { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
@@ -94,7 +93,7 @@
     .kiosk-float  { animation:floatY 6.5s ease-in-out infinite; }
     .kiosk-tap    { animation:tapBounce 2.8s ease-in-out infinite; }
     .kiosk-slide  { animation:kioskSlide .42s cubic-bezier(.16,1,.3,1) forwards; }
-    .kiosk-back   { animation:kioskSlide .36s cubic-bezier(.16,1,.3,1) reverse forwards; }
+
     @keyframes drainRing   { from{stroke-dashoffset:0} to{stroke-dashoffset:283} }
     @keyframes nameShake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
     /* nameGlow: fallback animation — overridden by JS-injected version with actual accent color */
@@ -231,6 +230,7 @@
     /* Amber/emerald text overrides */
     body.dark .text-amber-500  { color: #fbbf24 !important; }
     body.dark .text-emerald-500{ color: #4ade80 !important; }
+    body.dark .text-green-500  { color: #4ade80 !important; }
 
     /* Amber tints — pause active banner */
     body.dark .bg-amber-50      { background: rgba(245,158,11,.12) !important; }
@@ -255,8 +255,8 @@
     body.dark .queue-warn-bg   { background: rgba(245,158,11,.16) !important; border:1px solid rgba(245,158,11,.25) !important; }
     body.dark .queue-warn-text { color: #fde68a !important; }
     .press-down:active { transform:scale(.96); }
-    /* Keyboard focus visible ring */
-    :focus-visible { outline:2px solid var(--ink-mid); outline-offset:2px; }
+    /* Keyboard focus visible ring — not on kiosk name field (has its own glow) */
+    :focus-visible:not(.name-required):not(.name-pulse):not(.name-pulse-dark) { outline:2px solid var(--ink-mid); outline-offset:2px; }
     .btn-hot  { background:linear-gradient(160deg,#f87171,#e84040); box-shadow:0 8px 24px -4px rgba(232,64,64,.4); }
     .btn-iced { background:linear-gradient(160deg,#60a5fa,#3b82f6); box-shadow:0 8px 24px -4px rgba(59,130,246,.4); }
     .btn-hot:active, .btn-iced:active  { transform:scale(.96); box-shadow:none; }
@@ -820,6 +820,7 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,onEditOpen,warnMins,l
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{background:'var(--surface-2)',color:'var(--ink-faint)',border:'1px solid var(--border)'}}> #{order.orderNumber??'—'}</span>
             {order.ready&&<span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-600">READY ✓</span>}
             {isLate&&!order.ready&&<span className="badge-late text-[8px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-500">LATE</span>}
+            {isWarn&&!isLate&&!order.ready&&<span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-600">SLOW</span>}
           </div>
           <h3 className="display text-3xl leading-tight mt-0.5" style={S.ink}>{order.customer}</h3>
           <p className="text-lg font-bold truncate mt-0.5 leading-snug" style={S.ink}>
@@ -918,11 +919,10 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,onEditOpen,warnMins,l
       )}
       {!order.ready&&!isEditing&&(
         <div className="mt-3 rounded-full overflow-hidden" style={{height:3,background:'var(--border)'}}>
-          <div className="h-full rounded-full prog-fill"
-               style={{'--pw':`${Math.min(100,Math.round(elapsed/LATE*100))}%`,
-                       width:`${Math.min(100,Math.round(elapsed/LATE*100))}%`,
+          <div className="h-full rounded-full"
+               style={{width:`${Math.min(100,Math.round(elapsed/LATE*100))}%`,
                        background:isLate?'#e84040':isWarn?'#f59e0b':'#22c55e',
-                       transition:'background .5s,width .6s'}}/>
+                       transition:'background .5s,width 1.2s cubic-bezier(.16,1,.3,1)'}}/>
         </div>
       )}
     </div>
@@ -1001,7 +1001,7 @@ const QueueView = ({orders,settings,milks,menu,onReady,onComplete,onNote,onEdit,
         <div className="text-center py-24">
           <div style={{fontSize:'3rem',opacity:.22,marginBottom:'12px'}}>☕</div>
           <div className="display text-5xl mb-2" style={S.faint}>QUEUE CLEAR</div>
-          <p className="text-sm font-medium" style={S.faint}>{shiftActive?'All orders completed ✓':"No active shift · go to Stats (S) to start one"}</p>
+          <p className="text-sm font-medium" style={S.faint}>{shiftActive?'All caught up ✓ — waiting for new orders':"No active shift · start one in Stats (S)"}</p>
         </div>
       )}
       {orders.length>0&&pending.length===0&&ready.length>0&&(
@@ -1124,7 +1124,7 @@ const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
           <h2 className="display text-3xl" style={S.ink}>ORDER HISTORY</h2>
           <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>{history.length} total · pruned after {DEFAULTS.TTL_DAYS} days</p>
         </div>
-        <button onClick={onClear} className="text-[10px] font-bold uppercase tracking-widest text-red-400 bg-red-50 px-4 py-2 rounded-full hover:bg-red-500 hover:text-white transition-all">Clear All</button>
+        <button onClick={onClear} className="text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-500 transition-all px-2 py-1">Clear</button>
       </div>
       <div className="relative mb-5">
         <input value={q} onChange={e=>{setQ(e.target.value);setPage(1);}}
@@ -1206,7 +1206,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
     (Date.now() - shift.startTime) > 24 * 60 * 60 * 1000;
 
   const cells = [
-    {label:'Revenue',     val:shiftStats.count>0?(shiftStats.revenue>0?`$${shiftStats.revenue.toFixed(2)}`:'FREE'):'—'},
+    {label:'Revenue',     val:shiftStats.count>0?(shiftStats.revenue>0?`$${shiftStats.revenue.toFixed(2)}`:'—'):'—'},
     {label:'Top Drink',   val:shiftStats.topDrink,   italic:true},
     {label:'Peak Hour',   val:shiftStats.busiestHour, italic:true},
     {label:'Drinks/Hr',   val:shiftStats.perHour},
@@ -1336,7 +1336,7 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
     <div className="rounded-[2.5rem] p-10 shadow-soft border text-center animate-pop" style={S.surf}>
       <div className="flex justify-center mb-3"><AnimatedCheck size={72} color={accentColor||'#22c55e'}/></div>
       {orderNum&&<p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={S.faint}>Order #{orderNum}</p>}
-      <p className="display text-3xl" style={S.ink}>{name.trim()?name.trim().replace(/\b\w/g,c=>c.toUpperCase()):'Order placed'}</p>
+      <p className="display text-3xl" style={S.ink}>{name.trim()?name.trim().replace(/\b\w/g,c=>c.toUpperCase()):'ORDER PLACED'}</p>
       {drink&&<p className="text-sm font-bold mt-1.5" style={S.mid}>{drink.name} · {temp} · {milk||'—'}</p>}
       <button onClick={()=>{clearTimeout(timerRef.current);setPlaced(false);setOrderNum(null);reset();}} className="mt-5 px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-70" style={{...S.surf2,...S.mid}}>+ Place Another</button>
     </div>
@@ -1734,8 +1734,8 @@ const SettingsView = ({
         </button>
       </div>
 
-      <button onClick={onLaunchKiosk} className="w-full py-8 rounded-[2.5rem] display text-3xl shadow-lift transition-all active:scale-[.98] hover:opacity-90 relative overflow-hidden"
-        style={{background:'var(--ink)',color:'var(--bg)'}}>
+      <button onClick={onLaunchKiosk} className="w-full py-8 rounded-[2.5rem] display text-3xl shadow-lift transition-all active:scale-[.98] hover:opacity-90"
+        style={{background:'var(--ink)',color:'var(--bg)',letterSpacing:'.08em'}}>
         LAUNCH KIOSK →
       </button>
 
@@ -1786,7 +1786,7 @@ const UndoToast=({order,onUndo})=>(
       <button onClick={onUndo} className="px-4 py-2 rounded-xl text-xs font-black uppercase hover:scale-105 transition-all" style={{background:'var(--bg)',color:'var(--ink)'}}>UNDO</button>
     </div>
     <div className="h-1 rounded-full mt-1.5 overflow-hidden" style={{background:'rgba(128,128,128,.2)'}}>
-      <div className="h-full rounded-full undo-bar" style={{background:'var(--ink-mid)'}}/>
+      <div className="h-full rounded-full undo-bar" style={{background:'rgba(255,255,255,.35)'}}/>
     </div>
   </div>
 );
@@ -1973,9 +1973,9 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
       {hasName&&(
         <div className="text-center mb-4 px-4" style={{animation:'greetIn .4s cubic-bezier(.16,1,.3,1) forwards'}}>
           <p className="font-black uppercase tracking-[.15em] text-lg" style={{color:accent}}>
-            Hi, {customerName.trim().replace(/\b\w/g,c=>c.toUpperCase())} —
+            Hi, {customerName.trim().replace(/\b\w/g,c=>c.toUpperCase())}
           </p>
-          <p className="text-xs font-medium mt-0.5 tracking-wide" style={{color:c.inkFaint}}>what would you like today?</p>
+          <p className="text-sm font-medium mt-1 tracking-wide" style={{color:c.inkFaint}}>what would you like today?</p>
         </div>
       )}
 
@@ -2010,7 +2010,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
                         style={{background:`${accent}22`,color:accent}}>✦ Signature</span>
                 )}
                 <h3 className="display text-left leading-tight"
-                    style={{color:c.ink,fontSize:'clamp(1.5rem,4vw,2rem)'}}>
+                    style={{color:c.ink,fontSize:'clamp(1.5rem,4vw,2rem)',minHeight:'2.5rem'}}>
                   {drink.name}
                 </h3>
                 {drink.description&&<p className="text-sm font-medium mt-1 leading-snug" style={{color:c.inkMid,opacity:.8}}>{drink.description}</p>}
@@ -2294,12 +2294,25 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,que
 /* PIN pad — uses CSS vars, dark mode safe */
 const PinPad = ({correctPin,onSuccess,onCancel}) => {
   const [entry,setEntry]=useState(''); const [shake,setShake]=useState(false);
+  const [attempts,setAttempts]=useState(0); const [locked,setLocked]=useState(false);
   useEffect(()=>{ const fn=e=>{if(e.key==='Escape')onCancel();}; window.addEventListener('keydown',fn); return()=>window.removeEventListener('keydown',fn); },[onCancel]);
-  const press=d=>{ const n=(entry+d).slice(0,4); setEntry(n); if(n.length===4){ if(n===String(correctPin||DEFAULTS.DEFAULT_PIN)){onSuccess();} else{setShake(true);setTimeout(()=>{setEntry('');setShake(false);},600);} } };
+  const press=d=>{
+    if(locked) return;
+    const n=(entry+d).slice(0,4); setEntry(n);
+    if(n.length===4){
+      if(n===String(correctPin||DEFAULTS.DEFAULT_PIN)){onSuccess();}
+      else{
+        const next=attempts+1; setAttempts(next); setShake(true);
+        if(next>=5){ setLocked(true); setTimeout(()=>{setLocked(false);setAttempts(0);},15000); }
+        setTimeout(()=>{setEntry('');setShake(false);},600);
+      }
+    }
+  };
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center" style={{background:'rgba(0,0,0,.72)',backdropFilter:'blur(14px)'}}>
       <div className={`rounded-[3rem] p-10 max-w-xs w-full text-center shadow-lift animate-pop border ${shake?'animate-shake':''}`} style={S.surf}>
-        <h2 className="display text-4xl mb-6" style={S.ink}>ENTER PIN</h2>
+        <h2 className="display text-4xl mb-6" style={S.ink}>{locked?'LOCKED':'ENTER PIN'}</h2>
+        {locked&&<p className="text-sm font-bold mb-4 text-red-500">Too many attempts — wait 15 seconds</p>}
         <div className="flex justify-center gap-4 mb-8">
           {[0,1,2,3].map(i=>(
             <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${i<entry.length?'pin-filled':''}`} style={i<entry.length?{}:{borderColor:'var(--ink-faint)'}}/>
@@ -2396,7 +2409,8 @@ const App = () => {
     try {
       const queuePos=data.orders.filter(o=>!o.ready).length+1;
       const rawN=customerName.trim(); const fmtN=rawN?rawN.replace(/\b\w/g,c=>c.toUpperCase()):'Guest';
-      const num=await data.placeOrder({customer:fmtN,flavor:pendingOrder.name,price:pendingOrder.price||0,temp:pendingOrder.temp,milk:selectedMilk,note:specialRequest.trim()});
+      const to8s=new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),8000));
+      const num=await Promise.race([data.placeOrder({customer:fmtN,flavor:pendingOrder.name,price:pendingOrder.price||0,temp:pendingOrder.temp,milk:selectedMilk,note:specialRequest.trim()}),to8s]);
       setSuccessData({orderNumber:num,customer:fmtN,flavor:pendingOrder.name,milk:selectedMilk,temp:pendingOrder.temp,price:pendingOrder.price||0,queuePos});
       setPendingOrder(null);setSelectedMilk(null);setSpecialRequest('');setCustomerName('');
       setTimeout(()=>setSuccessData(null),DEFAULTS.SUCCESS_MS);
@@ -2497,7 +2511,7 @@ const App = () => {
           )}
           {orderError&&(
             <div className="fixed bottom-8 left-1/2 z-[900] animate-in" style={{transform:'translateX(-50%)',maxWidth:'90vw'}}>
-              <div className="bg-red-500 text-white px-6 py-4 rounded-2xl text-sm font-bold shadow-lift text-center">⚠️ {orderError}</div>
+              <div className="bg-red-500 text-white px-6 py-4 rounded-2xl text-base font-bold shadow-lift text-center" style={{animation:'softPulse 1.5s ease-in-out 2'}}>⚠️ {orderError}</div>
             </div>
           )}
           {successData&&<SuccessScreen {...successData} settings={data.settings} estWait={data.estWait} onDismiss={()=>setSuccessData(null)}/>}
