@@ -669,7 +669,7 @@ const OrderTimer = ({elapsed, warnMins, lateMins}) => {
       <span className={`display text-2xl block leading-none ${late?'text-red-500 badge-late':warn?'text-amber-500':''}`} style={(!late&&!warn)?S.ink:{}}>
         {elapsed===0?'< 1m':elapsed>=60?`${Math.floor(elapsed/60)}h${elapsed%60?` ${elapsed%60}m`:''}`:elapsed+'m'}
       </span>
-      <span className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>WAIT</span>
+      <span className="text-[9px] font-bold uppercase tracking-widest" style={{color:late?'#e84040':warn?'#f59e0b':'var(--ink-faint)'}}>WAIT</span>
     </div>
   );
 };
@@ -1209,7 +1209,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
     {label:'Top Drink',   val:shiftStats.topDrink,   italic:true},
     {label:'Peak Hour',   val:shiftStats.busiestHour, italic:true},
     {label:'Drinks/Hr',   val:shiftStats.perHour},
-    {label:'Avg Price',   val:(shiftStats.avgRevenue&&shiftStats.avgRevenue!=='—'&&shiftStats.count>0)?`$${shiftStats.avgRevenue}`:'—'},
+    {label:'Avg Price',   val:(shiftStats.avgRevenue&&shiftStats.avgRevenue!=='—'&&shiftStats.count>0&&Number(shiftStats.avgRevenue)>0)?`$${shiftStats.avgRevenue}`:'—'},
     {label:'Avg Wait',    val:fmtMins(shiftStats.avgWait)+(shiftStats.minWait!==null&&shiftStats.maxWait!==null&&shiftStats.count>1?` (${fmtMins(shiftStats.minWait)}–${fmtMins(shiftStats.maxWait)})`:'')},
     {label:'Shift Time',   val:liveDur&&liveDur!=='—'?liveDur:'—'},
   ];
@@ -1336,7 +1336,7 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
       <div className="flex justify-center mb-3"><AnimatedCheck size={72} color={accentColor||'#22c55e'}/></div>
       {orderNum&&<p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={S.faint}>Order #{orderNum}</p>}
       <p className="display text-3xl" style={S.ink}>{name.trim()?name.trim().replace(/\b\w/g,c=>c.toUpperCase()):'ORDER PLACED'}</p>
-      {drink&&<p className="text-sm font-bold mt-1.5" style={S.mid}>{drink.name} · {temp} · {milk||'—'}</p>}
+      {drink&&<p className="text-sm font-bold mt-1.5" style={S.mid}>{drink.name}{temp?` · ${temp}`:''}{milk?` · ${milk}`:''}</p>}
       <button onClick={()=>{clearTimeout(timerRef.current);setPlaced(false);setOrderNum(null);reset();}} className="mt-5 px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-70" style={{...S.surf2,...S.mid}}>+ Place Another</button>
     </div>
   );
@@ -1385,13 +1385,13 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
         <button onClick={confirm} disabled={submitting}
           className="w-full text-white py-4 rounded-2xl font-black text-base uppercase tracking-widest transition-all active:scale-[.98]"
           style={{...(submitting?{opacity:.6,cursor:'not-allowed'}:{}),background:`linear-gradient(135deg,${accentColor||'#22c55e'},${accentColor||'#22c55e'}cc)`,boxShadow:`0 8px 24px -4px ${accentColor||'#22c55e'}44`}}>
-          {submitting?'PLACING…':`${drink.name} · ${fmtPrice(drink.price)}`}
+          {submitting?'PLACING…':drink.price>0?`${drink.name} · ${fmtPrice(drink.price)}`:drink.name}
         </button>
       </div>}
       {drink&&milk&&(
         <div className="flex items-center justify-between px-2 mt-1 mb-1 animate-in">
           <span className="text-[10px] font-bold uppercase tracking-widest truncate" style={S.faint}>{drink.name}{temp?` · ${temp}`:''}{milk?` · ${milk}`:''}</span>
-          <span className="text-sm font-black ml-2 flex-shrink-0" style={S.ink}>{fmtPrice(drink.price)}</span>
+          {Number(drink.price)>0&&<span className="text-sm font-black ml-2 flex-shrink-0" style={S.ink}>{fmtPrice(drink.price)}</span>}
         </div>
       )}
       {(drink||temp||milk)&&<button onClick={reset} className="w-full mt-1 py-2 text-[10px] font-bold uppercase tracking-widest" style={S.faint}>Clear</button>}
@@ -2352,6 +2352,7 @@ const App = () => {
   const [orderError,     setOrderError]     = useState(null);
   const idleRef = useRef(null);
   const exitRef = useRef({count:0,last:0});
+  const successTimerRef = useRef(null);
 
   /* Keyboard shortcuts — barista mode only, ignores inputs */
   useEffect(()=>{
@@ -2409,7 +2410,8 @@ const App = () => {
       const num=await Promise.race([data.placeOrder({customer:fmtN,flavor:pendingOrder.name,price:pendingOrder.price||0,temp:pendingOrder.temp,milk:selectedMilk,note:specialRequest.trim()}),to8s]);
       setSuccessData({orderNumber:num,customer:fmtN,flavor:pendingOrder.name,milk:selectedMilk,temp:pendingOrder.temp,price:pendingOrder.price||0,queuePos});
       setPendingOrder(null);setSelectedMilk(null);setSpecialRequest('');setCustomerName('');
-      setTimeout(()=>setSuccessData(null),DEFAULTS.SUCCESS_MS);
+      clearTimeout(successTimerRef.current);
+      successTimerRef.current=setTimeout(()=>setSuccessData(null),DEFAULTS.SUCCESS_MS);
     } catch(e) {
       console.error('Order placement failed:', e);
       setOrderError('Something went wrong — please try again.');
@@ -2437,7 +2439,7 @@ const App = () => {
   const handleSummaryCard=useCallback(()=>{
     const s=data.shiftStats,name=data.settings.eventName||DEFAULTS.APP_NAME;
     const date=new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-    const cells=[['Drinks Served',s.count],['Revenue',s.revenue>0?`$${s.revenue.toFixed(2)}`:'—'],['Top Drink',s.topDrink],['Avg Wait',fmtMins(s.avgWait)],['Peak Hour',s.busiestHour]];
+    const cells=[['Drinks Served',s.count],['Revenue',s.revenue>0?`$${s.revenue.toFixed(2)}`:'—'],['Top Drink',s.topDrink],['Avg Wait',fmtMins(s.avgWait)],['Peak Hour',s.busiestHour],['Shift Time',s.durationStr||'—']];
     const card=document.getElementById('share-card');
     card.innerHTML=`<div style="background:#0c0c0c;color:#f0f0f0;padding:56px;font-family:'DM Sans',sans-serif;border-radius:24px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:68px;letter-spacing:.04em;line-height:1;margin-bottom:4px;">${name}</div>
@@ -2510,7 +2512,7 @@ const App = () => {
               <div className="bg-red-500 text-white px-6 py-4 rounded-2xl text-base font-bold shadow-lift text-center" style={{animation:'softPulse 1.5s ease-in-out 2'}}>⚠️ {orderError}</div>
             </div>
           )}
-          {successData&&<SuccessScreen {...successData} settings={data.settings} estWait={data.estWait} onDismiss={()=>setSuccessData(null)}/>}
+          {successData&&<SuccessScreen {...successData} settings={data.settings} estWait={data.estWait} onDismiss={()=>{clearTimeout(successTimerRef.current);setSuccessData(null);}}/>}
           {showPinPad&&<PinPad correctPin={data.settings.pin||DEFAULTS.DEFAULT_PIN} onSuccess={handlePinSuccess} onCancel={()=>setShowPinPad(false)}/>}
         </Fragment>
       )}
