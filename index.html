@@ -231,10 +231,14 @@
     body.dark .text-amber-500  { color: #fbbf24 !important; }
     body.dark .text-emerald-500{ color: #4ade80 !important; }
     body.dark .text-green-500  { color: #4ade80 !important; }
+    body.dark .text-green-700  { color: #4ade80 !important; }
+    body.dark .border-green-200 { border-color: rgba(74,222,128,.25) !important; }
+    body.dark .bg-green-50      { background: rgba(74,222,128,.08) !important; }
 
     /* Amber tints — pause active banner */
     body.dark .bg-amber-50      { background: rgba(245,158,11,.12) !important; }
     body.dark .bg-amber-100     { background: rgba(245,158,11,.18) !important; }
+    body.dark .text-amber-600   { color: #fbbf24 !important; }
     body.dark .text-amber-600   { color: #fbbf24 !important; }
     body.dark .border-amber-200 { border-color: rgba(245,158,11,.2) !important; }
     body.dark .text-amber-700   { color: #fbbf24 !important; }
@@ -392,7 +396,7 @@ const Db = {
     DB.ref('shift').set({active:false,startTime:0});
     DB.ref('pause').set({active:false,message:''});  // clear pause when shift ends
   },
-  setPause:   m  => DB.ref('pause').set({active:true,message:m||'Back soon!',since:Date.now()}),
+  setPause:   m  => DB.ref('pause').set({active:true,message:m||'Back in a few minutes',since:Date.now()}),
   clearPause: () => DB.ref('pause').set({active:false,message:''}),
   patchSettings: p => DB.ref('settings').update(p),
 };
@@ -795,9 +799,9 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,onEditOpen,warnMins,l
   useEffect(()=>{ const id=setTimeout(()=>setMounted(true),10); return()=>clearTimeout(id); },[]);
 
   /* Single interval — synced to minute boundary, both timeout and interval properly cleaned up */
-  const [elapsed,setElapsed] = useState(()=>Math.round((Date.now()-order.startTime)/60000));
+  const [elapsed,setElapsed] = useState(()=>Math.max(0,Math.round((Date.now()-order.startTime)/60000)));
   useEffect(()=>{
-    const tick=()=>setElapsed(Math.round((Date.now()-order.startTime)/60000));
+    const tick=()=>setElapsed(Math.max(0,Math.round((Date.now()-order.startTime)/60000)));
     let intervalId=null;
     const msUntilNextMin = 60000 - (Date.now()%60000);
     const timeoutId = setTimeout(()=>{ tick(); intervalId=setInterval(tick,60000); }, msUntilNextMin);
@@ -920,7 +924,7 @@ const QueueCard = ({order,onReady,onComplete,onNote,onEdit,onEditOpen,warnMins,l
       {!order.ready&&!isEditing&&(
         <div className="mt-3 rounded-full overflow-hidden" style={{height:3,background:'var(--border)'}}>
           <div className="h-full rounded-full"
-               style={{width:`${Math.min(100,Math.round(elapsed/LATE*100))}%`,
+               style={{width:`${Math.max(0,Math.min(100,Math.round(elapsed/LATE*100)))}%`,
                        background:isLate?'#e84040':isWarn?'#f59e0b':'#22c55e',
                        transition:'background .5s,width 1.2s cubic-bezier(.16,1,.3,1)'}}/>
         </div>
@@ -994,7 +998,7 @@ const QueueView = ({orders,settings,milks,menu,onReady,onComplete,onNote,onEdit,
     <div className="space-y-2.5 animate-in">
       {pending.length>=warn&&(
         <div className="queue-warn-text queue-warn-bg px-5 py-3 rounded-2xl font-bold text-sm text-center">
-          ⚡ {pending.length} orders queued{ready.length>0?` · ${ready.length} ready for pickup`:''}{estWait>1?` · ~${fmtMins(estWait)} shown to customers`:''}
+          ⚡ {pending.length} in queue{ready.length>0?` · ${ready.length} ready`:''}{estWait>1?` · ~${fmtMins(estWait)} wait`:''}
         </div>
       )}
       {orders.length===0&&(
@@ -1063,7 +1067,7 @@ const HistoryDetailModal = ({order,onClose,onRequeue,onSaveNote}) => {
       </div>
     </div>
     <div className="flex gap-3 mt-5">
-      <button onClick={onClose} className="flex-1 py-3.5 rounded-2xl font-bold text-sm border" style={S.surf}>Done</button>
+      <button onClick={onClose} className="flex-1 py-3.5 rounded-2xl font-bold text-sm border transition-all active:scale-95" style={S.surf}>Done</button>
       {onRequeue&&<button onClick={()=>{onRequeue(order);onClose();}} className="flex-1 py-3.5 rounded-2xl font-bold text-sm" style={{background:'var(--ink)',color:'var(--bg)'}}>↑ Re-queue</button>}
     </div>
   </Modal>
@@ -1121,7 +1125,7 @@ const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
       <div className="flex justify-between items-start mb-5">
         <div>
           <h2 className="display text-3xl" style={S.ink}>ORDER HISTORY</h2>
-          <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>{history.length} total · pruned after {DEFAULTS.TTL_DAYS} days</p>
+          {history.length>0&&<p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>{history.length} orders · auto-pruned after {DEFAULTS.TTL_DAYS} days</p>}
         </div>
         <button onClick={onClear} className="text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-500 transition-all px-2 py-1">Clear</button>
       </div>
@@ -1162,7 +1166,7 @@ const HistoryView = ({history,onClear,onRequeue,onSaveNote}) => {
                       <span className={`text-[8px] font-black px-2 py-0.5 rounded-full mr-1.5 inline-block align-middle ${o.temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{o.temp}</span>
                       {o.flavor} · {o.milk}{o.note&&<span className="italic opacity-70"> · "{o.note}"</span>}
                     </p>
-                    {o.baristaNote&&<p className="inline-block text-[10px] font-medium mt-1 px-2 py-0.5 rounded-full" style={{...S.surf,border:'1px solid var(--border)',color:'var(--ink-mid)'}}>📝 {o.baristaNote}</p>}
+                    {o.baristaNote&&<p className="inline-block text-[10px] font-medium mt-1 px-2 py-0.5 rounded-full max-w-[200px] truncate" style={{...S.surf,border:'1px solid var(--border)',color:'var(--ink-mid)'}}>📝 {o.baristaNote}</p>}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <span className="display text-xl" style={S.ink}>{fmtMins(o.waitTime)}</span>
@@ -1193,7 +1197,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
   useEffect(()=>{
     setLiveDur(shiftStats.durationStr);
     if (!shift.active) return;
-    const tick=()=>{ const ms=Date.now()-shift.startTime; setLiveDur(`${Math.floor(ms/3600000)}h ${Math.floor((ms%3600000)/60000)}m`); };
+    const tick=()=>{ const ms=Date.now()-shift.startTime; const hh=Math.floor(ms/3600000),mm=Math.floor((ms%3600000)/60000); setLiveDur(ms<60000?'< 1m':hh>0?`${hh}h ${mm}m`:`${mm}m`); };
     let intervalId=null;
     const msUntilNextMin = 60000-(Date.now()%60000);
     const timeoutId = setTimeout(()=>{ tick(); intervalId=setInterval(tick,60000); }, msUntilNextMin);
@@ -1228,7 +1232,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
       <div className="rounded-[2.5rem] p-8 shadow-soft border" style={S.surf}>
         <div className="text-center mb-6">
           <button onClick={shift.active?onEndShiftRequest:onStartShift}
-            className={`px-10 py-4 rounded-full font-bold uppercase tracking-widest text-sm transition-all shadow-sm ${shift.active?'bg-red-500 text-white':'bg-emerald-500 text-white'}`}>
+            className={`px-10 py-4 rounded-full font-bold uppercase tracking-widest text-sm transition-all active:scale-95 shadow-sm ${shift.active?'bg-red-500 text-white':'bg-emerald-500 text-white'}`}>
             {shift.active?'● End Shift':'Start Shift'}
           </button>
           {shift.active&&(
@@ -1249,7 +1253,7 @@ const StatsView = ({shift,shiftStats,settings,onStartShift,onEndShiftRequest,exp
           <>
             <div className="py-5 border-t border-b text-center" style={{borderColor:'var(--border)'}}>
               <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={S.faint}>Drinks Served</p>
-              <p className="display text-8xl" style={{...S.ink,textShadow:'0 0 40px rgba(255,255,255,.04)'}}>{shiftStats.count}</p>
+              <p className="display text-8xl" style={S.ink}>{shiftStats.count}</p>
               {shiftStats.revenue>0&&<p className="text-xl font-black mt-1" style={S.mid}>${shiftStats.revenue.toFixed(2)}</p>}
               <div className="flex justify-center gap-4 mt-2">
                 {(()=>{ const tot=(shiftStats.hotCount||0)+(shiftStats.icedCount||0); return (<>
@@ -1336,15 +1340,15 @@ const QuickAddView = ({menu,milks,onPlace,accentColor}) => {
       <div className="flex justify-center mb-3"><AnimatedCheck size={72} color={accentColor||'#22c55e'}/></div>
       {orderNum&&<p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={S.faint}>Order #{orderNum}</p>}
       <p className="display text-3xl" style={S.ink}>{name.trim()?name.trim().replace(/\b\w/g,c=>c.toUpperCase()):'ORDER PLACED'}</p>
-      {drink&&<p className="text-sm font-bold mt-1.5" style={S.mid}>{drink.name}{temp?` · ${temp}`:''}{milk?` · ${milk}`:''}</p>}
-      <button onClick={()=>{clearTimeout(timerRef.current);setPlaced(false);setOrderNum(null);reset();}} className="mt-5 px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-70" style={{...S.surf2,...S.mid}}>+ Place Another</button>
+      {drink&&<p className="text-sm font-bold mt-1.5" style={S.mid}>{[drink.name,temp,milk].filter(Boolean).join(' · ')}</p>}
+      <button onClick={()=>{clearTimeout(timerRef.current);setPlaced(false);setOrderNum(null);reset();}} className="mt-5 px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all active:scale-95" style={{background:`${accentColor||'#22c55e'}20`,color:accentColor||'#22c55e',border:`1px solid ${accentColor||'#22c55e'}40`}}>+ Place Another</button>
     </div>
   );
   return (
     <div className="rounded-[2.5rem] p-8 shadow-soft border animate-in" style={S.surf}>
       <h2 className="display text-3xl mb-1" style={S.ink}>WALK-UP ORDER</h2>
       <p className="text-[10px] font-bold uppercase tracking-widest mb-5" style={S.faint}>Add an order on behalf of a customer</p>
-      <input value={name} onChange={e=>setName(e.target.value)} autoComplete="off" placeholder="Customer name (optional)" className="w-full px-5 py-3.5 rounded-2xl text-sm font-medium mb-5 outline-none border" style={{...S.inp,textTransform:'capitalize'}} onKeyDown={e=>{if(e.key==='Enter') document.getElementById('qa-first-drink')?.click();}}/>
+      <input value={name} onChange={e=>setName(e.target.value)} autoComplete="off" maxLength={24} placeholder="Customer name (optional)" className="w-full px-5 py-3.5 rounded-2xl text-sm font-medium mb-5 outline-none border" style={{...S.inp,textTransform:'capitalize'}} onKeyDown={e=>{if(e.key==='Enter') document.getElementById('qa-first-drink')?.click();}}/>
       <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={S.faint}>Drink</p>
       <div className="grid grid-cols-2 gap-2 mb-4">
         {avail.map(d=>(
@@ -1460,7 +1464,7 @@ const SettingsView = ({
   onAddMilk, onUpdateMilk, onDeleteMilk, onToggleMilkSoldOut, onMoveMilkUp,onMoveMilkDown,
   onResetSoldOut,onUpdateSettings,onLaunchKiosk,onSetPause,onClearPause,onTestSound,onClearHistory,
 }) => {
-  const [pauseMsg,setPauseMsg]=useState(()=>pause.message||'Back soon!');
+  const [pauseMsg,setPauseMsg]=useState(()=>pause.message||'Back in a few minutes');
   // Sync pauseMsg if the pause state changes externally while Settings is open
   useEffect(()=>{ if(pause.message) setPauseMsg(pause.message); },[pause.message]);
   const [delDrink,setDelDrink]=useState(null);
@@ -1601,7 +1605,7 @@ const SettingsView = ({
           </div>
         ):(
           <div className="space-y-3">
-            <input value={pauseMsg} onChange={e=>setPauseMsg(e.target.value)} placeholder="Back soon!" className={`${inp} font-medium`} style={S.inp}/>
+            <input value={pauseMsg} onChange={e=>setPauseMsg(e.target.value)} placeholder="Back in a few minutes" className={`${inp} font-medium`} style={S.inp}/>
             <button onClick={()=>onSetPause(pauseMsg)} className="w-full py-3.5 rounded-2xl font-bold text-sm bg-amber-500 text-white">⏸ Pause Kiosk Orders</button>
           </div>
         )}
@@ -1754,7 +1758,7 @@ const ShiftEndModal=({stats,onConfirm,onCancel,activeOrders=0,shiftStats})=>(
       {stats.revenue>0&&<p className="text-sm font-bold" style={S.mid}>💵 ${stats.revenue.toFixed(2)} revenue</p>}
       <p className="text-sm font-bold" style={S.mid}>⏱ {fmtMins(stats.avgWait)}{stats.minWait!==null&&stats.maxWait!==null&&stats.count>1?` (${fmtMins(stats.minWait)}–${fmtMins(stats.maxWait)})`:''} avg wait</p>
       {stats.perHour&&stats.perHour!=='—'&&<p className="text-sm font-bold" style={S.mid}>⚡ {stats.perHour} drinks/hr</p>}
-      {stats.avgRevenue&&stats.avgRevenue!=='—'&&stats.count>0&&<p className="text-sm font-bold" style={S.mid}>💰 ${stats.avgRevenue} avg per drink</p>}
+      {stats.avgRevenue&&stats.avgRevenue!=='—'&&stats.count>0&&Number(stats.avgRevenue)>0&&<p className="text-sm font-bold" style={S.mid}>💰 ${stats.avgRevenue} avg per drink</p>}
       {stats.durationStr&&stats.durationStr!=='—'&&<p className="text-sm font-bold" style={S.mid}>🕐 {stats.durationStr} shift duration</p>}
       {stats.topDrink&&stats.topDrink!=='—'&&<p className="text-sm font-bold" style={S.mid}>⭐ {stats.topDrink} was most popular</p>}
     </div>
@@ -1769,7 +1773,7 @@ const ClearHistoryModal=({onConfirm,onCancel})=>(
     <h2 className="display text-4xl mb-2" style={S.ink}>CLEAR HISTORY?</h2>
     <p className="text-sm font-medium mb-6" style={S.mid}>This cannot be undone.</p>
     <div className="flex flex-col gap-3">
-      <button onClick={onConfirm} className="bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-sm">Yes, Clear All</button>
+      <button onClick={onConfirm} className="bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-sm transition-all hover:bg-red-600 active:scale-95">Yes, Clear All</button>
       <button onClick={onCancel} className="py-4 rounded-2xl font-black uppercase text-sm border" style={S.surf}>Cancel</button>
     </div>
   </Modal>
@@ -2105,7 +2109,7 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
           <button onClick={onCancel}
             className="flex items-center gap-2 font-bold text-sm transition-all active:scale-95"
             style={{color:c.inkMid,padding:'12px 22px',borderRadius:'9999px',background:c.surface2,border:`1px solid ${c.border}`}}>
-            ← Menu
+            ← Back
           </button>
           <div className="flex flex-col items-center gap-1">
             <div className="flex items-center gap-1.5">
@@ -2252,7 +2256,7 @@ const SuccessScreen = ({orderNumber,customer,flavor,milk,temp,price,settings,que
              :(settings.kioskDark?'rgba(59,130,246,.1)':'rgba(59,130,246,.05)'),
                    border:`1px solid ${temp==='HOT'?'rgba(232,64,64,.2)':'rgba(59,130,246,.2)'}`,
                    animation:'successItem .4s .95s both',opacity:0}}>
-        <p className="font-medium text-base" style={{color:c.ink}}>
+        <p className="font-medium text-base truncate" style={{color:c.ink}}>
           <span className={`text-[9px] font-black px-2.5 py-1 rounded-full mr-2 inline-block align-middle ${temp==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{temp}</span>
           {flavor} · {milk}
         </p>
