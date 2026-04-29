@@ -96,6 +96,8 @@
 
     @keyframes drainRing   { from{stroke-dashoffset:0} to{stroke-dashoffset:283} }
     @keyframes nameShake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
+    /* Kiosk inputs always use their inline styles regardless of body.dark */
+    .kiosk-grain input, .kiosk-grain textarea, .kiosk-grain button { isolation: isolate; }
     /* nameGlow: fallback animation — overridden by JS-injected version with actual accent color */
     @keyframes nameGlow {
       0%,100% { border-color:rgba(34,197,94,.5); box-shadow:0 0 0 0 rgba(34,197,94,0), 0 0 18px rgba(34,197,94,.1); }
@@ -173,10 +175,10 @@
     body.dark .card-warn  { box-shadow: 0 0 0 2px #f59e0b, 0 2px 18px rgba(0,0,0,.55) !important; background: rgba(245,158,11,.05) !important; }
     body.dark .card-late  { box-shadow: 0 0 0 2px #e84040, 0 2px 18px rgba(0,0,0,.55) !important; background: rgba(232,64,64,.055) !important; }
     body.dark .card-ready { box-shadow: 0 0 0 2px #22c55e, 0 2px 18px rgba(0,0,0,.55) !important; background: rgba(34,197,94,.06) !important; }
-    body.dark input[type="text"]:not(.name-required),body.dark input[type="number"],body.dark input[type="password"],body.dark textarea {
+    body.dark input[type="text"]:not(.name-required):not(.kiosk-field),body.dark input[type="number"]:not(.kiosk-field),body.dark input[type="password"],body.dark textarea:not(.kiosk-field) {
       border-color:#4a4a4a !important; background:#1e1e1e !important; }
-    body.dark input::placeholder { color:#585858 !important; }
-    body.dark input[type="text"]:not(.name-required):focus,body.dark input[type="number"]:focus,body.dark textarea:focus {
+    body.dark input:not(.kiosk-field)::placeholder { color:#585858 !important; }
+    body.dark input[type="text"]:not(.name-required):not(.kiosk-field):focus,body.dark input[type="number"]:not(.kiosk-field):focus,body.dark textarea:not(.kiosk-field):focus {
       border-color:#666 !important; box-shadow:0 0 0 3px rgba(255,255,255,.05) !important; }
 
     /* ── Misc ────────────────────────────────── */
@@ -569,7 +571,7 @@ const useAppData = () => {
   const startShift = useCallback(()=>{ Db.startShift(); Db.resetCounter(); }, []);
 
   /* Menu helpers */
-  const addMenuItem        = ()      => Db.addMenuItem({name:'',price:5,soldOut:false,featured:false,description:'',temps:['HOT','ICED']});
+  const addMenuItem        = ()      => Db.addMenuItem({name:'',price:5,soldOut:false,featured:false,description:'',recipe:'',temps:['HOT','ICED']});
   const updateMenuItem     = (k,p)   => Db.updateMenuItem(k,p);
   const deleteMenuItem     = k       => Db.deleteMenuItem(k);
   const toggleDrinkSoldOut = item    => Db.updateMenuItem(item._key,{soldOut:!item.soldOut});
@@ -741,16 +743,149 @@ const AnimatedCheck = ({size=112,color='#22c55e'}) => (
    SECTION 5 — BARISTA UI VIEWS
    ═══════════════════════════════════════════════════════════════════ */
 
+const RecipesView = ({menu,onUpdateDrink}) => {
+  const [selected,setSelected] = useState(null);
+  /* Keep selected in sync if menu changes (e.g. name edited in Settings) */
+  const currentDrink = selected ? (menu.find(d=>d._key===selected._key)||selected) : null;
+  const drinks = menu.filter(d=>d.name);
+
+  /* ─── Detail sub-component (keeps hooks outside conditional) ─── */
+  const RecipeDetail = ({drink,onBack,onSave}) => {
+    const steps = (drink.recipe||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    const [editing,setEditing] = useState(false);
+    const [draft,setDraft] = useState(drink.recipe||'');
+    useEffect(()=>{ if(!editing) setDraft(drink.recipe||''); },[drink.recipe,editing]);
+    const save = () => { onSave(drink._key,{recipe:draft}); setEditing(false); };
+    return (
+    const save = () => {
+      onUpdateDrink(drink._key,{recipe:draft});
+      setEditing(false);
+    };
+    return (
+      <div className="animate-in">
+        {/* Back */}
+        <button onClick={onBack}
+          className="flex items-center gap-1.5 mb-5 text-xs font-bold uppercase tracking-widest transition-all hover:opacity-60 active:scale-95"
+          style={S.faint}>← Back</button>
+
+        {/* Drink header */}
+        <div className="rounded-[2.5rem] p-7 shadow-soft border mb-4" style={S.surf}>
+          <div className="flex items-start gap-4 mb-0">
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {(drink.temps?.length?drink.temps:['HOT','ICED']).map(t=>(
+                  <span key={t} className={`text-[9px] font-black px-2.5 py-1 rounded-full ${t==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{t}</span>
+                ))}
+                {drink.featured&&<span className="text-[9px] font-black px-2.5 py-1 rounded-full" style={{...S.surf2,...S.faint}}>✦ Signature</span>}
+              </div>
+              <h2 className="display text-4xl leading-tight" style={S.ink}>{drink.name}</h2>
+              {drink.description&&<p className="text-sm font-medium mt-1.5" style={S.mid}>{drink.description}</p>}
+            </div>
+            {Number(drink.price)>0&&<span className="text-sm font-bold px-3 py-1 rounded-full flex-shrink-0 mt-1" style={{...S.surf2,...S.mid}}>{fmtPrice(drink.price)}</span>}
+          </div>
+        </div>
+
+        {/* Recipe section */}
+        <div className="rounded-[2.5rem] p-7 shadow-soft border" style={S.surf}>
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="display text-2xl" style={S.ink}>RECIPE</h3>
+              <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>One step per line</p>
+            </div>
+            {!editing
+              ? <button onClick={()=>{setDraft(drink.recipe||'');setEditing(true);}}
+                  className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full transition-all hover:opacity-70 active:scale-95"
+                  style={{background:'var(--ink)',color:'var(--bg)'}}>
+                  {steps.length>0?'Edit':'+ Add Recipe'}
+                </button>
+              : <div className="flex gap-2">
+                  <button onClick={()=>setEditing(false)}
+                    className="text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-full border transition-all active:scale-95" style={S.surf}>Cancel</button>
+                  <button onClick={save}
+                    className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full transition-all active:scale-95"
+                    style={{background:'var(--ink)',color:'var(--bg)'}}>Save</button>
+                </div>
+            }
+          </div>
+
+          {editing ? (
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={e=>setDraft(e.target.value)}
+              placeholder={"Step 1: Pull double shot\nStep 2: Steam milk to 150°F\nStep 3: Pour and garnish"}
+              rows={8}
+              className="w-full px-4 py-3 rounded-2xl text-sm font-medium outline-none border resize-none leading-relaxed"
+              style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}}
+            />
+          ) : steps.length>0 ? (
+            <div className="space-y-2.5">
+              {steps.map((step,i)=>(
+                <div key={i} className="flex gap-4 items-start p-4 rounded-2xl" style={S.surf2}>
+                  <span className="display text-xl leading-none flex-shrink-0 mt-0.5" style={{color:'var(--ink-faint)',minWidth:'1.4rem'}}>{i+1}</span>
+                  <p className="text-sm font-medium leading-relaxed" style={S.ink}>{step}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10 rounded-2xl border border-dashed" style={{borderColor:'var(--border)'}}>
+              <p className="text-sm font-medium mb-1" style={S.mid}>No recipe yet</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={S.faint}>Tap "+ Add Recipe" to get started</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };  /* end RecipeDetail */
+  if(currentDrink) return <RecipeDetail drink={currentDrink} onBack={()=>setSelected(null)} onSave={onUpdateDrink}/>;
+
+  return (
+    <div>
+      <div className="mb-5">
+        <h2 className="display text-3xl" style={S.ink}>RECIPES</h2>
+        <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>{drinks.filter(d=>d.recipe&&d.recipe.trim()).length} of {drinks.length} drink{drinks.length!==1?'s':''} have recipes</p>
+      </div>
+      {drinks.length===0&&<p className="text-sm font-medium text-center py-8" style={S.faint}>No drinks on menu yet — add drinks in Settings</p>}
+      <div className="space-y-2">
+        {drinks.map(d=>{
+          const hasRecipe = d.recipe&&d.recipe.trim().length>0;
+          const stepCount = hasRecipe?d.recipe.split('\n').filter(s=>s.trim()).length:0;
+          return (
+            <button key={d._key} onClick={()=>setSelected(d)}
+              className="w-full flex items-center gap-4 p-4 rounded-2xl text-left border transition-all hover:opacity-80 active:scale-[.99]"
+              style={{...S.surf,borderColor:'var(--border)'}}>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-sm uppercase tracking-wide truncate" style={S.ink}>{d.name}</p>
+                {d.description&&<p className="text-[11px] font-medium truncate mt-0.5" style={S.faint}>{d.description}</p>}
+              </div>
+              <div className="flex items-center gap-2.5 flex-shrink-0">
+                {hasRecipe
+                  ?<span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full"
+                      style={{background:'rgba(34,197,94,.12)',color:'#22c55e',border:'1px solid rgba(34,197,94,.2)'}}>
+                      {stepCount} step{stepCount!==1?'s':''}
+                    </span>
+                  :<span className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>No recipe</span>
+                }
+                <span className="text-sm" style={S.faint}>›</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const BaristaNav = ({view,setView,queueCount,online,paused,accentColor,drinksServed}) => (
   <nav className="flex items-center gap-2 p-2 rounded-2xl shadow-soft border mb-5" style={S.surf}>
     <div className="flex gap-1 flex-1 overflow-x-auto no-scroll">
-      {['queue','add','history','stats','settings'].map(t=>(
+      {['queue','add','history','recipes','stats','settings'].map(t=>(
         <button key={t} onClick={()=>setView(t)}
           className="flex-shrink-0 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap inline-flex items-center"
           style={view===t
             ? {background:accentColor||'var(--ink)',color:'var(--bg)',transition:'background .2s,color .2s'}
             : {...S.mid,transition:'background .2s,color .2s'}}>
-          {t==='add'?'Walk-Up (N)':t==='queue'?'Queue (Q)':t==='history'?'History (H)':t==='stats'?'Stats (S)':'Settings (E)'}
+          {t==='add'?'Walk-Up (N)':t==='queue'?'Queue (Q)':t==='history'?'History (H)':t==='recipes'?'Recipes (R)':t==='stats'?'Stats (S)':'Settings (E)'}
           {t==='queue'&&<Badge count={queueCount}/>}
         </button>
       ))}
@@ -1666,6 +1801,7 @@ const SettingsView = ({
                   className="w-full px-3 py-2.5 rounded-xl text-xs font-bold uppercase outline-none border" style={{background:'var(--surface)',borderColor:'var(--border)',color:'var(--ink)'}}/>
                 <input placeholder="Short description (optional)" value={d.description||''} onChange={e=>onUpdateDrink(d._key,{description:e.target.value})}
                   className="w-full px-3 py-2 rounded-xl text-[10px] font-medium outline-none border" style={{background:'var(--surface)',borderColor:'var(--border)',color:'var(--ink-mid)'}}/>
+
                 <div className="flex gap-1.5 pt-0.5">
                   {['HOT','ICED'].map(t=>{
                     const cur=d.temps?.length?d.temps:['HOT','ICED'];
@@ -1820,7 +1956,7 @@ const kc = (dark) => ({
   border:   dark ? '#333333'  : '#ebebeb',
   ink:      dark ? '#f5f0e8'  : '#0f0f0f',
   inkMid:   dark ? '#9a9590'  : '#6b6b6b',
-  inkFaint: dark ? '#999999'  : '#c4c4c4',
+  inkFaint: dark ? '#999999'  : '#8c8c8c',
   priceBg:  dark ? '#2a2a2a'  : '#f3f2ef',
 });
 
@@ -1926,7 +2062,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
   const raw=accent; const a=raw.length===4?`#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`:raw;
   const kaR=parseInt(a.slice(1,3),16),kaG=parseInt(a.slice(3,5),16),kaB=parseInt(a.slice(5,7),16);
   return (
-    <div className="kiosk-grain min-h-screen pb-28" style={{background:c.bg,'--kiosk-accent':accent,'--kiosk-border':c.border,'--ka-r':kaR,'--ka-g':kaG,'--ka-b':kaB}}>
+    <div className="kiosk-grain min-h-screen pb-28" style={{background:c.bg,colorScheme:dark?'dark':'light','--kiosk-accent':accent,'--kiosk-border':c.border,'--ka-r':kaR,'--ka-g':kaG,'--ka-b':kaB}}>
       <div onClick={onExitTap} style={{position:'fixed',top:0,right:0,width:120,height:120,zIndex:10000}}/>
       {isBusy&&estWait>2&&(
         <div className="fixed top-4 left-4 z-[50] flex items-center gap-1.5 px-3 py-2 rounded-full animate-in"
@@ -1981,7 +2117,7 @@ const KioskMenuView = ({menu,customerName,queueCount,settings,estWait,onNameChan
           <p className="font-black uppercase tracking-[.15em] text-lg" style={{color:accent}}>
             Hi, {customerName.trim().replace(/\b\w/g,c=>c.toUpperCase())}
           </p>
-          <p className="text-sm font-medium mt-1 tracking-wide" style={{color:c.inkFaint}}>what would you like today?</p>
+          <p className="text-sm font-medium mt-1 tracking-wide" style={{color:c.inkMid}}>what would you like today?</p>
         </div>
       )}
 
@@ -2179,7 +2315,7 @@ const MilkSelectView = ({pendingOrder,milks,selectedMilk,specialRequest,onSelect
               </div>
             )}
             <input type="text" value={active.filter(x=>!chips.includes(x)).join(', ')} onChange={e=>{ const free=e.target.value; const cp=active.filter(x=>chips.includes(x)); onSpecialRequest([...cp,free].filter(Boolean).join(', ')); }}
-              className="w-full px-6 py-4 rounded-[2rem] text-base font-medium border outline-none text-center"
+              className="w-full px-6 py-4 rounded-[2rem] text-base font-medium border outline-none text-center kiosk-field"
               style={{background:c.surface2,borderColor:c.border,color:c.ink}} placeholder="Anything else?"/>
             <div className="pt-2">
               <div className="mb-6">
@@ -2364,6 +2500,7 @@ const App = () => {
       if(e.key==='q') setBaristaView('queue');
       if(e.key==='n') setBaristaView('add');
       if(e.key==='h') setBaristaView('history');
+      if(e.key==='r') setBaristaView('recipes');
       if(e.key==='s'&&!e.shiftKey) setBaristaView('stats');
       if(e.key==='e') setBaristaView('settings');
     };
@@ -2471,6 +2608,7 @@ const App = () => {
 
           {baristaView==='queue'&&<QueueView orders={data.orders} settings={data.settings} milks={data.milks} menu={data.menu} estWait={data.estWait} shiftActive={data.shift.active} onReady={handleReady} onComplete={handleComplete} onNote={data.addNote} onEdit={(o,p)=>data.updateOrder(o,p)}/>}
           {baristaView==='add'&&<QuickAddView menu={data.menu} milks={data.milks} onPlace={data.placeOrder} accentColor={data.settings.accentColor}/>}
+          {baristaView==='recipes'&&<RecipesView menu={data.menu} onUpdateDrink={data.updateMenuItem}/>}
           {baristaView==='history'&&<HistoryView history={data.history} onClear={()=>setShowClearModal(true)} onSaveNote={data.addHistoryNote} onRequeue={o=>{ data.placeOrder({customer:o.customer,flavor:o.flavor,price:o.price||0,temp:o.temp,milk:o.milk,note:o.note||''}); setBaristaView('queue'); }}/>}
           {baristaView==='stats'&&<StatsView shift={data.shift} shiftStats={data.shiftStats} settings={data.settings} onStartShift={data.startShift} onEndShiftRequest={()=>setShowShiftModal(true)} exportCSV={data.exportCSV} onGenerateSummaryCard={handleSummaryCard} queueDepth={data.orders.filter(o=>!o.ready).length}/>}
           {baristaView==='settings'&&(
