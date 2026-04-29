@@ -743,49 +743,41 @@ const AnimatedCheck = ({size=112,color='#22c55e'}) => (
    SECTION 5 — BARISTA UI VIEWS
    ═══════════════════════════════════════════════════════════════════ */
 
-const RecipesView = ({menu,onUpdateDrink}) => {
-  const [selected,setSelected] = useState(null);
-  /* Keep selected in sync if menu changes (e.g. name edited in Settings) */
-  const currentDrink = selected ? (menu.find(d=>d._key===selected._key)||selected) : null;
-  const drinks = menu.filter(d=>d.name);
+const RecipesView = ({menu, onUpdateDrink}) => {
+  const [selected, setSelected] = useState(null);
+  const currentDrink = selected ? (menu.find(d => d._key === selected._key) || selected) : null;
+  const drinks = menu.filter(d => d.name);
 
-  /* ─── Detail sub-component (keeps hooks outside conditional) ─── */
-  const RecipeDetail = ({drink,onBack,onSave}) => {
-    const steps = (drink.recipe||'').split('\n').map(s=>s.trim()).filter(Boolean);
-    const [editing,setEditing] = useState(false);
-    const [draft,setDraft] = useState(drink.recipe||'');
-    useEffect(()=>{ if(!editing) setDraft(drink.recipe||''); },[drink.recipe,editing]);
-    const save = () => { onSave(drink._key,{recipe:draft}); setEditing(false); };
-    return (
-    const save = () => {
-      onUpdateDrink(drink._key,{recipe:draft});
-      setEditing(false);
-    };
+  const RecipeDetail = ({drink, onBack, onSave}) => {
+    const steps = (drink.recipe || '').split('\n').map(s => s.trim()).filter(Boolean);
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft]     = useState(drink.recipe || '');
+    useEffect(() => { if (!editing) setDraft(drink.recipe || ''); }, [drink.recipe, editing]);
+    const save = () => { onSave(drink._key, {recipe: draft}); setEditing(false); };
     return (
       <div className="animate-in">
-        {/* Back */}
         <button onClick={onBack}
           className="flex items-center gap-1.5 mb-5 text-xs font-bold uppercase tracking-widest transition-all hover:opacity-60 active:scale-95"
           style={S.faint}>← Back</button>
 
         {/* Drink header */}
         <div className="rounded-[2.5rem] p-7 shadow-soft border mb-4" style={S.surf}>
-          <div className="flex items-start gap-4 mb-0">
+          <div className="flex items-start gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap gap-1.5 mb-2">
-                {(drink.temps?.length?drink.temps:['HOT','ICED']).map(t=>(
+                {(drink.temps?.length ? drink.temps : ['HOT','ICED']).map(t => (
                   <span key={t} className={`text-[9px] font-black px-2.5 py-1 rounded-full ${t==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{t}</span>
                 ))}
-                {drink.featured&&<span className="text-[9px] font-black px-2.5 py-1 rounded-full" style={{...S.surf2,...S.faint}}>✦ Signature</span>}
+                {drink.featured && <span className="text-[9px] font-black px-2.5 py-1 rounded-full" style={{...S.surf2,...S.faint}}>✦ Signature</span>}
               </div>
               <h2 className="display text-4xl leading-tight" style={S.ink}>{drink.name}</h2>
-              {drink.description&&<p className="text-sm font-medium mt-1.5" style={S.mid}>{drink.description}</p>}
+              {drink.description && <p className="text-sm font-medium mt-1.5" style={S.mid}>{drink.description}</p>}
             </div>
-            {Number(drink.price)>0&&<span className="text-sm font-bold px-3 py-1 rounded-full flex-shrink-0 mt-1" style={{...S.surf2,...S.mid}}>{fmtPrice(drink.price)}</span>}
+            {Number(drink.price) > 0 && <span className="text-sm font-bold px-3 py-1 rounded-full flex-shrink-0 mt-1" style={{...S.surf2,...S.mid}}>{fmtPrice(drink.price)}</span>}
           </div>
         </div>
 
-        {/* Recipe section */}
+        {/* Recipe */}
         <div className="rounded-[2.5rem] p-7 shadow-soft border" style={S.surf}>
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -793,14 +785,15 @@ const RecipesView = ({menu,onUpdateDrink}) => {
               <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>One step per line</p>
             </div>
             {!editing
-              ? <button onClick={()=>{setDraft(drink.recipe||'');setEditing(true);}}
+              ? <button onClick={() => { setDraft(drink.recipe || ''); setEditing(true); }}
                   className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full transition-all hover:opacity-70 active:scale-95"
                   style={{background:'var(--ink)',color:'var(--bg)'}}>
-                  {steps.length>0?'Edit':'+ Add Recipe'}
+                  {steps.length > 0 ? 'Edit' : '+ Add Recipe'}
                 </button>
               : <div className="flex gap-2">
-                  <button onClick={()=>setEditing(false)}
-                    className="text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-full border transition-all active:scale-95" style={S.surf}>Cancel</button>
+                  <button onClick={() => setEditing(false)}
+                    className="text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-full border transition-all active:scale-95"
+                    style={S.surf}>Cancel</button>
                   <button onClick={save}
                     className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full transition-all active:scale-95"
                     style={{background:'var(--ink)',color:'var(--bg)'}}>Save</button>
@@ -809,18 +802,14 @@ const RecipesView = ({menu,onUpdateDrink}) => {
           </div>
 
           {editing ? (
-            <textarea
-              autoFocus
-              value={draft}
-              onChange={e=>setDraft(e.target.value)}
+            <textarea autoFocus value={draft} onChange={e => setDraft(e.target.value)}
               placeholder={"Step 1: Pull double shot\nStep 2: Steam milk to 150°F\nStep 3: Pour and garnish"}
               rows={8}
               className="w-full px-4 py-3 rounded-2xl text-sm font-medium outline-none border resize-none leading-relaxed"
-              style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}}
-            />
-          ) : steps.length>0 ? (
+              style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}}/>
+          ) : steps.length > 0 ? (
             <div className="space-y-2.5">
-              {steps.map((step,i)=>(
+              {steps.map((step, i) => (
                 <div key={i} className="flex gap-4 items-start p-4 rounded-2xl" style={S.surf2}>
                   <span className="display text-xl leading-none flex-shrink-0 mt-0.5" style={{color:'var(--ink-faint)',minWidth:'1.4rem'}}>{i+1}</span>
                   <p className="text-sm font-medium leading-relaxed" style={S.ink}>{step}</p>
@@ -836,35 +825,38 @@ const RecipesView = ({menu,onUpdateDrink}) => {
         </div>
       </div>
     );
-  };  /* end RecipeDetail */
-  if(currentDrink) return <RecipeDetail drink={currentDrink} onBack={()=>setSelected(null)} onSave={onUpdateDrink}/>;
+  };
+
+  if (currentDrink) return <RecipeDetail drink={currentDrink} onBack={() => setSelected(null)} onSave={onUpdateDrink}/>;
 
   return (
     <div>
       <div className="mb-5">
         <h2 className="display text-3xl" style={S.ink}>RECIPES</h2>
-        <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>{drinks.filter(d=>d.recipe&&d.recipe.trim()).length} of {drinks.length} drink{drinks.length!==1?'s':''} have recipes</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>
+          {drinks.filter(d => d.recipe && d.recipe.trim()).length} of {drinks.length} drink{drinks.length!==1?'s':''} have recipes
+        </p>
       </div>
-      {drinks.length===0&&<p className="text-sm font-medium text-center py-8" style={S.faint}>No drinks on menu yet — add drinks in Settings</p>}
+      {drinks.length === 0 && <p className="text-sm font-medium text-center py-8" style={S.faint}>No drinks on menu yet — add drinks in Settings</p>}
       <div className="space-y-2">
-        {drinks.map(d=>{
-          const hasRecipe = d.recipe&&d.recipe.trim().length>0;
-          const stepCount = hasRecipe?d.recipe.split('\n').filter(s=>s.trim()).length:0;
+        {drinks.map(d => {
+          const hasRecipe  = d.recipe && d.recipe.trim().length > 0;
+          const stepCount  = hasRecipe ? d.recipe.split('\n').filter(s => s.trim()).length : 0;
           return (
-            <button key={d._key} onClick={()=>setSelected(d)}
+            <button key={d._key} onClick={() => setSelected(d)}
               className="w-full flex items-center gap-4 p-4 rounded-2xl text-left border transition-all hover:opacity-80 active:scale-[.99]"
-              style={{...S.surf,borderColor:'var(--border)'}}>
+              style={{...S.surf, borderColor:'var(--border)'}}>
               <div className="flex-1 min-w-0">
                 <p className="font-black text-sm uppercase tracking-wide truncate" style={S.ink}>{d.name}</p>
-                {d.description&&<p className="text-[11px] font-medium truncate mt-0.5" style={S.faint}>{d.description}</p>}
+                {d.description && <p className="text-[11px] font-medium truncate mt-0.5" style={S.faint}>{d.description}</p>}
               </div>
               <div className="flex items-center gap-2.5 flex-shrink-0">
                 {hasRecipe
-                  ?<span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full"
-                      style={{background:'rgba(34,197,94,.12)',color:'#22c55e',border:'1px solid rgba(34,197,94,.2)'}}>
-                      {stepCount} step{stepCount!==1?'s':''}
-                    </span>
-                  :<span className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>No recipe</span>
+                  ? <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full"
+                        style={{background:'rgba(34,197,94,.12)',color:'#22c55e',border:'1px solid rgba(34,197,94,.2)'}}>
+                        {stepCount} step{stepCount!==1?'s':''}
+                      </span>
+                  : <span className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>No recipe</span>
                 }
                 <span className="text-sm" style={S.faint}>›</span>
               </div>
