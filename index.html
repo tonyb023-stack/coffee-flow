@@ -241,7 +241,6 @@
     body.dark .bg-amber-50      { background: rgba(245,158,11,.12) !important; }
     body.dark .bg-amber-100     { background: rgba(245,158,11,.18) !important; }
     body.dark .text-amber-600   { color: #fbbf24 !important; }
-    body.dark .text-amber-600   { color: #fbbf24 !important; }
     body.dark .border-amber-200 { border-color: rgba(245,158,11,.2) !important; }
     body.dark .text-amber-700   { color: #fbbf24 !important; }
 
@@ -576,16 +575,21 @@ const useAppData = () => {
   const deleteMenuItem     = k       => Db.deleteMenuItem(k);
   const toggleDrinkSoldOut = item    => Db.updateMenuItem(item._key,{soldOut:!item.soldOut});
   const toggleFeatured     = item    => Db.updateMenuItem(item._key,{featured:!item.featured});
-  const moveMenuUp   = useCallback((item,i)=>{ if(!i) return; const p=menu[i-1]; Db.updateMenuItem(item._key,{sortOrder:p.sortOrder}); Db.updateMenuItem(p._key,{sortOrder:item.sortOrder}); },[menu]);
-  const moveMenuDown = useCallback((item,i)=>{ if(i>=menu.length-1) return; const n=menu[i+1]; Db.updateMenuItem(item._key,{sortOrder:n.sortOrder}); Db.updateMenuItem(n._key,{sortOrder:item.sortOrder}); },[menu]);
+  const _reorderList = (arr, from, to, updateFn) => {
+    if(from===to||from<0||to<0||from>=arr.length||to>=arr.length) return;
+    const a=[...arr]; const [m]=a.splice(from,1); a.splice(to,0,m);
+    a.forEach((d,i)=>updateFn(d._key,{sortOrder:(i+1)*1000}));
+  };
+  const moveMenuUp   = useCallback((item,i)=>_reorderList(menu,i,i-1,(k,p)=>Db.updateMenuItem(k,p)),[menu]);
+  const moveMenuDown = useCallback((item,i)=>_reorderList(menu,i,i+1,(k,p)=>Db.updateMenuItem(k,p)),[menu]);
 
   /* Milk helpers */
   const addMilkItem        = ()      => Db.addMilkItem({name:'',soldOut:false});
   const updateMilkItem     = (k,p)   => Db.updateMilkItem(k,p);
   const deleteMilkItem     = k       => Db.deleteMilkItem(k);
   const toggleMilkSoldOut  = item    => Db.updateMilkItem(item._key,{soldOut:!item.soldOut});
-  const moveMilkUp   = useCallback((item,i)=>{ if(!i) return; const p=milks[i-1]; Db.updateMilkItem(item._key,{sortOrder:p.sortOrder}); Db.updateMilkItem(p._key,{sortOrder:item.sortOrder}); },[milks]);
-  const moveMilkDown = useCallback((item,i)=>{ if(i>=milks.length-1) return; const n=milks[i+1]; Db.updateMilkItem(item._key,{sortOrder:n.sortOrder}); Db.updateMilkItem(n._key,{sortOrder:item.sortOrder}); },[milks]);
+  const moveMilkUp   = useCallback((item,i)=>_reorderList(milks,i,i-1,(k,p)=>Db.updateMilkItem(k,p)),[milks]);
+  const moveMilkDown = useCallback((item,i)=>_reorderList(milks,i,i+1,(k,p)=>Db.updateMilkItem(k,p)),[milks]);
 
   const resetSoldOut = useCallback(()=>{
     menu.forEach(d=>{if(d.soldOut) Db.updateMenuItem(d._key,{soldOut:false});});
@@ -748,117 +752,255 @@ const RecipesView = ({menu, onUpdateDrink}) => {
   const currentDrink = selected ? (menu.find(d => d._key === selected._key) || selected) : null;
   const drinks = menu.filter(d => d.name);
 
+  /* ─── Helpers to parse / serialise the recipe JSON ─── */
+  const parseRecipe = (raw) => {
+    if (!raw) return {ingredients:[], steps:[]};
+    try {
+      const p = JSON.parse(raw);
+      if (p && Array.isArray(p.steps)) return p;
+    } catch(e) {}
+    /* Legacy: plain newline-delimited steps */
+    const lines = raw.split('\n').map(s=>s.trim()).filter(Boolean);
+    return {ingredients:[], steps:lines};
+  };
+  const serialise = (obj) => JSON.stringify(obj);
+
+  /* ─── Detail sub-component ─────────────────────────── */
   const RecipeDetail = ({drink, onBack, onSave}) => {
-    const steps = (drink.recipe || '').split('\n').map(s => s.trim()).filter(Boolean);
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft]     = useState(drink.recipe || '');
-    useEffect(() => { if (!editing) setDraft(drink.recipe || ''); }, [drink.recipe, editing]);
-    const save = () => { onSave(drink._key, {recipe: draft}); setEditing(false); };
+    const parsed  = parseRecipe(drink.recipe);
+    const [ingredients, setIngredients] = useState(parsed.ingredients||[]);
+    const [steps,       setSteps]       = useState(parsed.steps||[]);
+    const [saved,       setSaved]       = useState(false);
+    const saveTimer = useRef(null);
+
+    /* Sync if recipe changes externally (e.g. another device) */
+    useEffect(() => {
+      const p = parseRecipe(drink.recipe);
+      setIngredients(p.ingredients||[]);
+      setSteps(p.steps||[]);
+    }, [drink._key]);
+
+    /* Debounced auto-save */
+    const triggerSave = (newIng, newSteps) => {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        onSave(drink._key, {recipe: serialise({ingredients:newIng, steps:newSteps})});
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1800);
+      }, 600);
+    };
+
+    /* ── Ingredient helpers ── */
+    const updateIng  = (i, v) => { const a=[...ingredients]; a[i]=v; setIngredients(a); triggerSave(a,steps); };
+    const addIng     = ()     => { const a=[...ingredients,'']; setIngredients(a); triggerSave(a,steps); };
+    const removeIng  = (i)    => { const a=ingredients.filter((_,x)=>x!==i); setIngredients(a); triggerSave(a,steps); };
+    const moveIng    = (i,d)  => {
+      const a=[...ingredients]; const j=i+d;
+      if(j<0||j>=a.length) return;
+      [a[i],a[j]]=[a[j],a[i]]; setIngredients(a); triggerSave(a,steps);
+    };
+
+    /* ── Step helpers ── */
+    const updateStep = (i, v) => { const a=[...steps]; a[i]=v; setSteps(a); triggerSave(ingredients,a); };
+    const addStep    = ()     => { const a=[...steps,'']; setSteps(a); triggerSave(ingredients,a); };
+    const removeStep = (i)    => { const a=steps.filter((_,x)=>x!==i); setSteps(a); triggerSave(ingredients,a); };
+    const moveStep   = (i,d)  => {
+      const a=[...steps]; const j=i+d;
+      if(j<0||j>=a.length) return;
+      [a[i],a[j]]=[a[j],a[i]]; setSteps(a); triggerSave(ingredients,a);
+    };
+
+    /* ── Row renderer shared by both sections ── */
+    const Row = ({value, onChange, onRemove, onUp, onDown, isFirst, isLast, placeholder, index, numbered, onEnter}) => {
+      const inputRef = useRef(null);
+      return (
+        <div className="flex items-center gap-2.5 group animate-in">
+          {/* Step number / bullet */}
+          <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black select-none"
+               style={{background:'var(--surface-2)',color:'var(--ink-faint)'}}>
+            {numbered ? index+1 : '·'}
+          </div>
+          {/* Input */}
+          <input
+            ref={inputRef}
+            value={value}
+            onChange={e=>onChange(e.target.value)}
+            onKeyDown={e=>{ if(e.key==='Enter'&&onEnter){e.preventDefault(); onEnter();} }}
+            placeholder={placeholder}
+            className="flex-1 px-3.5 py-2.5 rounded-xl text-sm font-medium outline-none border transition-all"
+            style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}}
+            onFocus={e=>{e.target.style.borderColor='var(--ink-mid)';e.target.style.boxShadow='0 0 0 3px rgba(0,0,0,.06)';}} onBlur={e=>{e.target.style.borderColor='var(--border)';e.target.style.boxShadow='none';}}
+          />
+          {/* Reorder */}
+          <div className="flex flex-col gap-0.5 flex-shrink-0">
+            <button onClick={onUp} disabled={isFirst}
+              className="w-6 h-5 rounded flex items-center justify-center text-[9px] transition-all disabled:opacity-15 hover:opacity-70 active:scale-90"
+              style={{color:'var(--ink-faint)',background:'transparent',border:'none',cursor:'pointer'}}>▲</button>
+            <button onClick={onDown} disabled={isLast}
+              className="w-6 h-5 rounded flex items-center justify-center text-[9px] transition-all disabled:opacity-15 hover:opacity-70 active:scale-90"
+              style={{color:'var(--ink-faint)',background:'transparent',border:'none',cursor:'pointer'}}>▼</button>
+          </div>
+          {/* Remove */}
+          <button onClick={onRemove}
+            className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm transition-all active:scale-90"
+            style={{color:'var(--ink-faint)',background:'transparent'}}
+            onMouseEnter={e=>{e.currentTarget.style.color='#e84040';e.currentTarget.style.background='rgba(232,64,64,.1)';}} onMouseLeave={e=>{e.currentTarget.style.color='var(--ink-faint)';e.currentTarget.style.background='transparent';}}>×</button>
+        </div>
+      );
+    };
+
     return (
       <div className="animate-in">
-        <button onClick={onBack}
-          className="flex items-center gap-1.5 mb-5 text-xs font-bold uppercase tracking-widest transition-all hover:opacity-60 active:scale-95"
-          style={S.faint}>← Back</button>
+        {/* Top bar */}
+        <div className="flex items-center justify-between mb-5">
+          <button onClick={onBack}
+            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest transition-all hover:opacity-60 active:scale-95"
+            style={S.faint}>← Back</button>
+          {saved && (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full animate-in"
+                  style={{background:'rgba(34,197,94,.12)',color:'#22c55e',border:'1px solid rgba(34,197,94,.2)'}}>
+              ✓ Saved
+            </span>
+          )}
+        </div>
 
-        {/* Drink header */}
-        <div className="rounded-[2.5rem] p-7 shadow-soft border mb-4" style={S.surf}>
-          <div className="flex items-start gap-4">
+        {/* Drink identity */}
+        <div className="rounded-[2.5rem] p-6 shadow-soft border mb-4" style={S.surf}>
+          <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {(drink.temps?.length ? drink.temps : ['HOT','ICED']).map(t => (
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {(drink.temps?.length ? drink.temps : ['HOT','ICED']).map(t=>(
                   <span key={t} className={`text-[9px] font-black px-2.5 py-1 rounded-full ${t==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{t}</span>
                 ))}
                 {drink.featured && <span className="text-[9px] font-black px-2.5 py-1 rounded-full" style={{...S.surf2,...S.faint}}>✦ Signature</span>}
               </div>
-              <h2 className="display text-4xl leading-tight" style={S.ink}>{drink.name}</h2>
-              {drink.description && <p className="text-sm font-medium mt-1.5" style={S.mid}>{drink.description}</p>}
+              <h2 className="display text-3xl leading-tight" style={S.ink}>{drink.name}</h2>
+              {drink.description && <p className="text-xs font-medium mt-1" style={S.mid}>{drink.description}</p>}
             </div>
-            {Number(drink.price) > 0 && <span className="text-sm font-bold px-3 py-1 rounded-full flex-shrink-0 mt-1" style={{...S.surf2,...S.mid}}>{fmtPrice(drink.price)}</span>}
+            {Number(drink.price)>0 && <span className="text-sm font-bold px-3 py-1 rounded-full flex-shrink-0" style={{...S.surf2,...S.mid}}>{fmtPrice(drink.price)}</span>}
           </div>
         </div>
 
-        {/* Recipe */}
-        <div className="rounded-[2.5rem] p-7 shadow-soft border" style={S.surf}>
-          <div className="flex items-center justify-between mb-5">
+        {/* Ingredients */}
+        <div className="rounded-[2.5rem] p-6 shadow-soft border mb-4" style={S.surf}>
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="display text-2xl" style={S.ink}>RECIPE</h3>
-              <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>One step per line</p>
+              <h3 className="display text-xl" style={S.ink}>INGREDIENTS</h3>
+              <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>{ingredients.length} item{ingredients.length!==1?'s':''}</p>
             </div>
-            {!editing
-              ? <button onClick={() => { setDraft(drink.recipe || ''); setEditing(true); }}
-                  className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full transition-all hover:opacity-70 active:scale-95"
-                  style={{background:'var(--ink)',color:'var(--bg)'}}>
-                  {steps.length > 0 ? 'Edit' : '+ Add Recipe'}
-                </button>
-              : <div className="flex gap-2">
-                  <button onClick={() => setEditing(false)}
-                    className="text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-full border transition-all active:scale-95"
-                    style={S.surf}>Cancel</button>
-                  <button onClick={save}
-                    className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full transition-all active:scale-95"
-                    style={{background:'var(--ink)',color:'var(--bg)'}}>Save</button>
-                </div>
-            }
+            <button onClick={addIng}
+              className="text-[10px] font-bold uppercase tracking-widest px-3.5 py-2 rounded-full transition-all hover:opacity-70 active:scale-95"
+              style={{background:'var(--ink)',color:'var(--bg)'}}>+ Add</button>
           </div>
-
-          {editing ? (
-            <textarea autoFocus value={draft} onChange={e => setDraft(e.target.value)}
-              placeholder={"Step 1: Pull double shot\nStep 2: Steam milk to 150°F\nStep 3: Pour and garnish"}
-              rows={8}
-              className="w-full px-4 py-3 rounded-2xl text-sm font-medium outline-none border resize-none leading-relaxed"
-              style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}}/>
-          ) : steps.length > 0 ? (
-            <div className="space-y-2.5">
-              {steps.map((step, i) => (
-                <div key={i} className="flex gap-4 items-start p-4 rounded-2xl" style={S.surf2}>
-                  <span className="display text-xl leading-none flex-shrink-0 mt-0.5" style={{color:'var(--ink-faint)',minWidth:'1.4rem'}}>{i+1}</span>
-                  <p className="text-sm font-medium leading-relaxed" style={S.ink}>{step}</p>
-                </div>
+          {ingredients.length > 0 ? (
+            <div className="space-y-2">
+              {ingredients.map((ing, i) => (
+                <Row key={i} value={ing} onChange={v=>updateIng(i,v)} onRemove={()=>removeIng(i)}
+                  onUp={()=>moveIng(i,-1)} onDown={()=>moveIng(i,1)}
+                  isFirst={i===0} isLast={i===ingredients.length-1}
+                  placeholder={`e.g. 2 shots espresso`} index={i} numbered={false} onEnter={addIng}/>
               ))}
             </div>
           ) : (
-            <div className="text-center py-10 rounded-2xl border border-dashed" style={{borderColor:'var(--border)'}}>
-              <p className="text-sm font-medium mb-1" style={S.mid}>No recipe yet</p>
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={S.faint}>Tap "+ Add Recipe" to get started</p>
+            <button onClick={addIng}
+              className="w-full py-6 rounded-2xl border border-dashed text-sm font-medium transition-all hover:opacity-70"
+              style={{borderColor:'var(--border)',color:'var(--ink-faint)'}}>
+              + Add first ingredient
+            </button>
+          )}
+        </div>
+
+        {/* Steps */}
+        <div className="rounded-[2.5rem] p-6 shadow-soft border" style={S.surf}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="display text-xl" style={S.ink}>STEPS</h3>
+              <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>{steps.length} step{steps.length!==1?'s':''}</p>
             </div>
+            <button onClick={addStep}
+              className="text-[10px] font-bold uppercase tracking-widest px-3.5 py-2 rounded-full transition-all hover:opacity-70 active:scale-95"
+              style={{background:'var(--ink)',color:'var(--bg)'}}>+ Add</button>
+          </div>
+          {steps.length > 0 ? (
+            <div className="space-y-2">
+              {steps.map((step, i) => (
+                <Row key={i} value={step} onChange={v=>updateStep(i,v)} onRemove={()=>removeStep(i)}
+                  onUp={()=>moveStep(i,-1)} onDown={()=>moveStep(i,1)}
+                  isFirst={i===0} isLast={i===steps.length-1}
+                  placeholder={`e.g. Steam milk to 150°F`} index={i} numbered={true} onEnter={addStep}/>
+              ))}
+              {/* Quick-add row at bottom */}
+              <button onClick={addStep}
+                className="w-full py-2.5 rounded-xl border border-dashed text-xs font-bold uppercase tracking-widest transition-all hover:opacity-70 mt-1"
+                style={{borderColor:'var(--border)',color:'var(--ink-faint)'}}>
+                + Add step
+              </button>
+            </div>
+          ) : (
+            <button onClick={addStep}
+              className="w-full py-6 rounded-2xl border border-dashed text-sm font-medium transition-all hover:opacity-70"
+              style={{borderColor:'var(--border)',color:'var(--ink-faint)'}}>
+              + Add first step
+            </button>
           )}
         </div>
       </div>
     );
   };
 
-  if (currentDrink) return <RecipeDetail drink={currentDrink} onBack={() => setSelected(null)} onSave={onUpdateDrink}/>;
+  if (currentDrink) return <RecipeDetail drink={currentDrink} onBack={()=>setSelected(null)} onSave={onUpdateDrink}/>;
+
+  /* ─── List view ──────────────────────────────────────── */
+  const withRecipe = drinks.filter(d => {
+    const p = parseRecipe(d.recipe);
+    return (p.ingredients.length + p.steps.length) > 0;
+  });
 
   return (
     <div>
       <div className="mb-5">
         <h2 className="display text-3xl" style={S.ink}>RECIPES</h2>
         <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>
-          {drinks.filter(d => d.recipe && d.recipe.trim()).length} of {drinks.length} drink{drinks.length!==1?'s':''} have recipes
+          {withRecipe.length} of {drinks.length} drink{drinks.length!==1?'s':''} have recipes
         </p>
       </div>
-      {drinks.length === 0 && <p className="text-sm font-medium text-center py-8" style={S.faint}>No drinks on menu yet — add drinks in Settings</p>}
+      {drinks.length===0 && (
+        <p className="text-sm font-medium text-center py-8" style={S.faint}>No drinks on menu yet — add drinks in Settings</p>
+      )}
       <div className="space-y-2">
         {drinks.map(d => {
-          const hasRecipe  = d.recipe && d.recipe.trim().length > 0;
-          const stepCount  = hasRecipe ? d.recipe.split('\n').filter(s => s.trim()).length : 0;
+          const p = parseRecipe(d.recipe);
+          const totalSteps = p.steps.length;
+          const totalIng   = p.ingredients.length;
+          const hasContent = totalSteps + totalIng > 0;
           return (
-            <button key={d._key} onClick={() => setSelected(d)}
+            <button key={d._key} onClick={()=>setSelected(d)}
               className="w-full flex items-center gap-4 p-4 rounded-2xl text-left border transition-all hover:opacity-80 active:scale-[.99]"
               style={{...S.surf, borderColor:'var(--border)'}}>
               <div className="flex-1 min-w-0">
                 <p className="font-black text-sm uppercase tracking-wide truncate" style={S.ink}>{d.name}</p>
                 {d.description && <p className="text-[11px] font-medium truncate mt-0.5" style={S.faint}>{d.description}</p>}
               </div>
-              <div className="flex items-center gap-2.5 flex-shrink-0">
-                {hasRecipe
-                  ? <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full"
-                        style={{background:'rgba(34,197,94,.12)',color:'#22c55e',border:'1px solid rgba(34,197,94,.2)'}}>
-                        {stepCount} step{stepCount!==1?'s':''}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {hasContent ? (
+                  <div className="flex gap-1.5">
+                    {totalIng>0 && (
+                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                        style={{background:'var(--surface-2)',color:'var(--ink-mid)',border:'1px solid var(--border)'}}>
+                        {totalIng} ing
                       </span>
-                  : <span className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>No recipe</span>
-                }
-                <span className="text-sm" style={S.faint}>›</span>
+                    )}
+                    {totalSteps>0 && (
+                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                        style={{background:'rgba(34,197,94,.1)',color:'#22c55e',border:'1px solid rgba(34,197,94,.2)'}}>
+                        {totalSteps} step{totalSteps!==1?'s':''}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>No recipe</span>
+                )}
+                <span style={S.faint}>›</span>
               </div>
             </button>
           );
@@ -877,7 +1019,7 @@ const BaristaNav = ({view,setView,queueCount,online,paused,accentColor,drinksSer
           style={view===t
             ? {background:accentColor||'var(--ink)',color:'var(--bg)',transition:'background .2s,color .2s'}
             : {...S.mid,transition:'background .2s,color .2s'}}>
-          {t==='add'?'Walk-Up (N)':t==='queue'?'Queue (Q)':t==='history'?'History (H)':t==='recipes'?'Recipes (R)':t==='stats'?'Stats (S)':'Settings (E)'}
+          {t==='add'?'Walk-Up (N)':t==='queue'?'Queue (Q)':t==='history'?'History (H)':t==='recipes'?'Recipes':t==='stats'?'Stats (S)':'Settings (E)'}
           {t==='queue'&&<Badge count={queueCount}/>}
         </button>
       ))}
