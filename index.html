@@ -97,7 +97,7 @@
     @keyframes drainRing   { from{stroke-dashoffset:0} to{stroke-dashoffset:283} }
     @keyframes nameShake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
     /* Kiosk inputs always use their inline styles regardless of body.dark */
-    .kiosk-grain input, .kiosk-grain textarea, .kiosk-grain button { isolation: isolate; }
+    .kiosk-grain input, .kiosk-grain textarea { isolation: isolate; }
     /* nameGlow: fallback animation — overridden by JS-injected version with actual accent color */
     @keyframes nameGlow {
       0%,100% { border-color:rgba(34,197,94,.5); box-shadow:0 0 0 0 rgba(34,197,94,0), 0 0 18px rgba(34,197,94,.1); }
@@ -197,7 +197,7 @@
        Default shadows use rgba(0,0,0,.06) — invisible on dark backgrounds.
        ─────────────────────────────────────────── */
     body.dark .shadow-soft { box-shadow:0 2px 12px rgba(0,0,0,.35),0 1px 4px rgba(0,0,0,.25) !important; }
-    body.dark .shadow-card { box-shadow:0 8px 32px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3) !important; }
+    body.dark .shadow-card:not(.kiosk-grain .shadow-card) { box-shadow:0 8px 32px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3) !important; }
     body.dark .shadow-lift { box-shadow:0 20px 60px rgba(0,0,0,.7),0 4px 16px rgba(0,0,0,.4) !important; }
 
     /* ── Dark mode overrides for hardcoded Tailwind colours ─────────
@@ -747,214 +747,219 @@ const AnimatedCheck = ({size=112,color='#22c55e'}) => (
    SECTION 5 — BARISTA UI VIEWS
    ═══════════════════════════════════════════════════════════════════ */
 
+/* ─── Recipe Row — top-level so React never re-mounts on parent render ─── */
+const RecipeRow = ({id, value, onChange, onRemove, onUp, onDown, isFirst, isLast, placeholder, index, numbered, onEnter}) => (
+  <div className="flex items-center gap-2.5 animate-in">
+    <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black select-none"
+         style={{background:'var(--surface-2)',color:'var(--ink-faint)'}}>
+      <span style={{color:numbered?'var(--ink)':'var(--ink-faint)',fontWeight:numbered?900:400,fontSize:numbered?11:14}}>{numbered ? index+1 : '·'}</span>
+    </div>
+    <input
+      value={value}
+      onChange={e=>onChange(e.target.value)}
+      onKeyDown={e=>{ if(e.key==='Enter'&&onEnter){e.preventDefault();onEnter();} }}
+      placeholder={placeholder}
+      className="flex-1 px-3.5 py-2.5 rounded-xl text-sm font-medium outline-none border transition-all"
+      style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}}
+      onFocus={e=>{e.target.style.borderColor='var(--ink-mid)';e.target.style.boxShadow='0 0 0 3px rgba(0,0,0,.06)';}}
+      onBlur={e=>{e.target.style.borderColor='var(--border)';e.target.style.boxShadow='none';}}
+    />
+    <div className="flex flex-col gap-0.5 flex-shrink-0">
+      <button onClick={onUp} disabled={isFirst}
+        className="w-7 h-6 flex items-center justify-center text-[10px] rounded-md transition-all disabled:opacity-15 hover:opacity-70 active:scale-90"
+        style={{color:'var(--ink-faint)',background:'var(--surface-2)',border:'1px solid var(--border)',cursor:'pointer'}}>▲</button>
+      <button onClick={onDown} disabled={isLast}
+        className="w-7 h-6 flex items-center justify-center text-[10px] rounded-md transition-all disabled:opacity-15 hover:opacity-70 active:scale-90"
+        style={{color:'var(--ink-faint)',background:'var(--surface-2)',border:'1px solid var(--border)',cursor:'pointer'}}>▼</button>
+    </div>
+    <button onClick={onRemove}
+      className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all active:scale-90"
+      style={{color:'var(--ink-faint)',background:'transparent'}}
+      onMouseEnter={e=>{e.currentTarget.style.color='#e84040';e.currentTarget.style.background='rgba(232,64,64,.1)';}}
+      onMouseLeave={e=>{e.currentTarget.style.color='var(--ink-faint)';e.currentTarget.style.background='transparent';}}>×</button>
+  </div>
+);
+
+/* ─── Recipe Detail — top-level component ─────────────────────── */
+const RecipeDetail = ({drink, onBack, onSave, parseRecipe, serialise}) => {
+  const parsed = parseRecipe(drink.recipe);
+
+  /* Give each item a stable ID so keys survive reorder without focus loss */
+  const withId = (arr) => arr.map((v,i) => ({id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2,6)}`, value: v}));
+  const toValues = (arr) => arr.map(x => x.value);
+
+  const [ingredients, setIngredients] = useState(() => withId(parsed.ingredients||[]));
+  const [steps,       setSteps]       = useState(() => withId(parsed.steps||[]));
+  const [saved,       setSaved]       = useState(false);
+  const saveTimer  = useRef(null);
+  const savedTimer = useRef(null);
+
+  /* Sync when navigating to a different drink */
+  useEffect(() => {
+    const p = parseRecipe(drink.recipe);
+    setIngredients(withId(p.ingredients||[]));
+    setSteps(withId(p.steps||[]));
+  }, [drink._key]);
+
+  /* Cleanup timers on unmount */
+  useEffect(() => () => { clearTimeout(saveTimer.current); clearTimeout(savedTimer.current); }, []);
+
+  const persist = (ings, stps) => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      onSave(drink._key, {recipe: serialise({ingredients: toValues(ings), steps: toValues(stps)})});
+      setSaved(true);
+      clearTimeout(savedTimer.current);
+      savedTimer.current = setTimeout(() => setSaved(false), 1800);
+    }, 500);
+  };
+
+  /* ── Ingredient helpers ── */
+  const updateIng = (id, v) => { const a=ingredients.map(x=>x.id===id?{...x,value:v}:x); setIngredients(a); persist(a,steps); };
+  const addIng    = ()      => { const a=[...ingredients,{id:`ing-${Date.now()}`,value:''}]; setIngredients(a); persist(a,steps); setTimeout(()=>document.getElementById(`ing-${a.length-1}`)?.focus(),50); };
+  const removeIng = (id)    => { const a=ingredients.filter(x=>x.id!==id); setIngredients(a); persist(a,steps); };
+  const moveIng   = (id,d)  => {
+    const a=[...ingredients]; const i=a.findIndex(x=>x.id===id); const j=i+d;
+    if(j<0||j>=a.length) return;
+    [a[i],a[j]]=[a[j],a[i]]; setIngredients(a); persist(a,steps);
+  };
+
+  /* ── Step helpers ── */
+  const updateStep = (id, v) => { const a=steps.map(x=>x.id===id?{...x,value:v}:x); setSteps(a); persist(ingredients,a); };
+  const addStep    = ()      => { const a=[...steps,{id:`stp-${Date.now()}`,value:''}]; setSteps(a); persist(ingredients,a); };
+  const removeStep = (id)    => { const a=steps.filter(x=>x.id!==id); setSteps(a); persist(ingredients,a); };
+  const moveStep   = (id,d)  => {
+    const a=[...steps]; const i=a.findIndex(x=>x.id===id); const j=i+d;
+    if(j<0||j>=a.length) return;
+    [a[i],a[j]]=[a[j],a[i]]; setSteps(a); persist(ingredients,a);
+  };
+
+  const emptyState = (label, onAdd) => (
+    <button onClick={onAdd}
+      className="w-full py-7 rounded-2xl border border-dashed transition-all hover:opacity-70 active:scale-[.99] flex flex-col items-center gap-1.5"
+      style={{borderColor:'var(--border)',color:'var(--ink-faint)'}}>
+      <span style={{fontSize:20,lineHeight:1,opacity:.45}}>+</span>
+      <span className="text-[10px] font-bold uppercase tracking-widest">Add first {label}</span>
+    </button>
+  );
+
+  return (
+    <div className="animate-in">
+      {/* Top bar */}
+      <div className="flex items-center justify-between mb-5">
+        <button onClick={onBack}
+          className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest transition-all hover:opacity-60 active:scale-95"
+          style={S.faint}>← Back</button>
+        <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full"
+              style={{background:'rgba(34,197,94,.12)',color:'#22c55e',border:'1px solid rgba(34,197,94,.2)',
+                      opacity:saved?1:0,transform:saved?'translateY(0)':'translateY(-4px)',
+                      transition:'opacity .3s,transform .3s cubic-bezier(.16,1,.3,1)'}}>
+          ✓ Saved
+        </span>
+      </div>
+
+      {/* Drink identity */}
+      <div className="rounded-[2.5rem] p-6 border mb-4" style={{...S.surf,boxShadow:'none'}}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {(drink.temps?.length?drink.temps:['HOT','ICED']).map(t=>(
+                <span key={t} className={`text-[9px] font-black px-2.5 py-1 rounded-full ${t==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{t}</span>
+              ))}
+              {drink.featured&&<span className="text-[9px] font-black px-2.5 py-1 rounded-full" style={{...S.surf2,...S.faint}}>✦ Signature</span>}
+            </div>
+            <h2 className="display text-3xl leading-tight" style={S.ink}>{drink.name}</h2>
+            {drink.description&&<p className="text-xs font-medium mt-1" style={S.mid}>{drink.description}</p>}
+          </div>
+          {Number(drink.price)>0&&<span className="text-sm font-bold px-3 py-1 rounded-full flex-shrink-0" style={{...S.surf2,...S.mid}}>{fmtPrice(drink.price)}</span>}
+        </div>
+      </div>
+
+      {/* Ingredients */}
+      <div className="rounded-[2.5rem] p-6 shadow-soft border mb-4" style={S.surf}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="display text-xl" style={S.ink}>INGREDIENTS</h3>
+            <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>
+              {ingredients.length} {ingredients.length===1?'item':'items'}
+            </p>
+          </div>
+          <button onClick={addIng}
+            className="text-[10px] font-bold uppercase tracking-widest px-3.5 py-2 rounded-full transition-all hover:opacity-70 active:scale-95"
+            style={{background:'var(--ink)',color:'var(--bg)'}}>+ Add</button>
+        </div>
+        {ingredients.length>0 ? (
+          <div className="space-y-2">
+            {ingredients.map((ing,i)=>(
+              <RecipeRow key={ing.id} id={ing.id} value={ing.value}
+                onChange={v=>updateIng(ing.id,v)} onRemove={()=>removeIng(ing.id)}
+                onUp={()=>moveIng(ing.id,-1)} onDown={()=>moveIng(ing.id,1)}
+                isFirst={i===0} isLast={i===ingredients.length-1}
+                placeholder="e.g. 2 shots espresso" index={i} numbered={false} onEnter={addIng}/>
+            ))}
+            <button onClick={addIng}
+              className="w-full py-2.5 rounded-xl border border-dashed text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-70 active:scale-[.99] mt-1"
+              style={{borderColor:'var(--border)',color:'var(--ink-faint)'}}>+ Add ingredient</button>
+          </div>
+        ) : emptyState('ingredient', addIng)}
+      </div>
+
+      {/* Steps */}
+      <div className="rounded-[2.5rem] p-6 shadow-soft border mb-8" style={S.surf}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="display text-xl" style={S.ink}>STEPS</h3>
+            <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>
+              {steps.length} {steps.length===1?'step':'steps'}
+            </p>
+          </div>
+          <button onClick={addStep}
+            className="text-[10px] font-bold uppercase tracking-widest px-3.5 py-2 rounded-full transition-all hover:opacity-70 active:scale-95"
+            style={{background:'var(--ink)',color:'var(--bg)'}}>+ Add</button>
+        </div>
+        {steps.length>0 ? (
+          <div className="space-y-2">
+            {steps.map((step,i)=>(
+              <RecipeRow key={step.id} id={step.id} value={step.value}
+                onChange={v=>updateStep(step.id,v)} onRemove={()=>removeStep(step.id)}
+                onUp={()=>moveStep(step.id,-1)} onDown={()=>moveStep(step.id,1)}
+                isFirst={i===0} isLast={i===steps.length-1}
+                placeholder="e.g. Steam milk to 150°F" index={i} numbered={true} onEnter={addStep}/>
+            ))}
+            <button onClick={addStep}
+              className="w-full py-2.5 rounded-xl border border-dashed text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-70 active:scale-[.99] mt-1"
+              style={{borderColor:'var(--border)',color:'var(--ink-faint)'}}>+ Add step</button>
+          </div>
+        ) : emptyState('step', addStep)}
+      </div>
+    </div>
+  );
+};
+
+/* ─── Recipes list + routing ──────────────────────────────────── */
 const RecipesView = ({menu, onUpdateDrink}) => {
   const [selected, setSelected] = useState(null);
-  const currentDrink = selected ? (menu.find(d => d._key === selected._key) || selected) : null;
-  const drinks = menu.filter(d => d.name);
+  const currentDrink = selected ? (menu.find(d=>d._key===selected._key)||selected) : null;
+  const drinks = menu.filter(d=>d.name);
 
-  /* ─── Helpers to parse / serialise the recipe JSON ─── */
   const parseRecipe = (raw) => {
-    if (!raw) return {ingredients:[], steps:[]};
-    try {
-      const p = JSON.parse(raw);
-      if (p && Array.isArray(p.steps)) return p;
-    } catch(e) {}
-    /* Legacy: plain newline-delimited steps */
-    const lines = raw.split('\n').map(s=>s.trim()).filter(Boolean);
-    return {ingredients:[], steps:lines};
+    if(!raw) return {ingredients:[],steps:[]};
+    try { const p=JSON.parse(raw); if(p&&Array.isArray(p.steps)) return p; } catch(e) {}
+    return {ingredients:[], steps: raw.split('\n').map(s=>s.trim()).filter(Boolean)};
   };
   const serialise = (obj) => JSON.stringify(obj);
 
-  /* ─── Detail sub-component ─────────────────────────── */
-  const RecipeDetail = ({drink, onBack, onSave}) => {
-    const parsed  = parseRecipe(drink.recipe);
-    const [ingredients, setIngredients] = useState(parsed.ingredients||[]);
-    const [steps,       setSteps]       = useState(parsed.steps||[]);
-    const [saved,       setSaved]       = useState(false);
-    const saveTimer = useRef(null);
+  if(currentDrink) return (
+    <RecipeDetail
+      drink={currentDrink}
+      onBack={()=>setSelected(null)}
+      onSave={onUpdateDrink}
+      parseRecipe={parseRecipe}
+      serialise={serialise}
+    />
+  );
 
-    /* Sync if recipe changes externally (e.g. another device) */
-    useEffect(() => {
-      const p = parseRecipe(drink.recipe);
-      setIngredients(p.ingredients||[]);
-      setSteps(p.steps||[]);
-    }, [drink._key]);
-
-    /* Debounced auto-save */
-    const triggerSave = (newIng, newSteps) => {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => {
-        onSave(drink._key, {recipe: serialise({ingredients:newIng, steps:newSteps})});
-        setSaved(true);
-        setTimeout(() => setSaved(false), 1800);
-      }, 600);
-    };
-
-    /* ── Ingredient helpers ── */
-    const updateIng  = (i, v) => { const a=[...ingredients]; a[i]=v; setIngredients(a); triggerSave(a,steps); };
-    const addIng     = ()     => { const a=[...ingredients,'']; setIngredients(a); triggerSave(a,steps); };
-    const removeIng  = (i)    => { const a=ingredients.filter((_,x)=>x!==i); setIngredients(a); triggerSave(a,steps); };
-    const moveIng    = (i,d)  => {
-      const a=[...ingredients]; const j=i+d;
-      if(j<0||j>=a.length) return;
-      [a[i],a[j]]=[a[j],a[i]]; setIngredients(a); triggerSave(a,steps);
-    };
-
-    /* ── Step helpers ── */
-    const updateStep = (i, v) => { const a=[...steps]; a[i]=v; setSteps(a); triggerSave(ingredients,a); };
-    const addStep    = ()     => { const a=[...steps,'']; setSteps(a); triggerSave(ingredients,a); };
-    const removeStep = (i)    => { const a=steps.filter((_,x)=>x!==i); setSteps(a); triggerSave(ingredients,a); };
-    const moveStep   = (i,d)  => {
-      const a=[...steps]; const j=i+d;
-      if(j<0||j>=a.length) return;
-      [a[i],a[j]]=[a[j],a[i]]; setSteps(a); triggerSave(ingredients,a);
-    };
-
-    /* ── Row renderer shared by both sections ── */
-    const Row = ({value, onChange, onRemove, onUp, onDown, isFirst, isLast, placeholder, index, numbered, onEnter}) => {
-      const inputRef = useRef(null);
-      return (
-        <div className="flex items-center gap-2.5 group animate-in">
-          {/* Step number / bullet */}
-          <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black select-none"
-               style={{background:'var(--surface-2)',color:'var(--ink-faint)'}}>
-            {numbered ? index+1 : '·'}
-          </div>
-          {/* Input */}
-          <input
-            ref={inputRef}
-            value={value}
-            onChange={e=>onChange(e.target.value)}
-            onKeyDown={e=>{ if(e.key==='Enter'&&onEnter){e.preventDefault(); onEnter();} }}
-            placeholder={placeholder}
-            className="flex-1 px-3.5 py-2.5 rounded-xl text-sm font-medium outline-none border transition-all"
-            style={{background:'var(--surface-2)',borderColor:'var(--border)',color:'var(--ink)'}}
-            onFocus={e=>{e.target.style.borderColor='var(--ink-mid)';e.target.style.boxShadow='0 0 0 3px rgba(0,0,0,.06)';}} onBlur={e=>{e.target.style.borderColor='var(--border)';e.target.style.boxShadow='none';}}
-          />
-          {/* Reorder */}
-          <div className="flex flex-col gap-0.5 flex-shrink-0">
-            <button onClick={onUp} disabled={isFirst}
-              className="w-6 h-5 rounded flex items-center justify-center text-[9px] transition-all disabled:opacity-15 hover:opacity-70 active:scale-90"
-              style={{color:'var(--ink-faint)',background:'transparent',border:'none',cursor:'pointer'}}>▲</button>
-            <button onClick={onDown} disabled={isLast}
-              className="w-6 h-5 rounded flex items-center justify-center text-[9px] transition-all disabled:opacity-15 hover:opacity-70 active:scale-90"
-              style={{color:'var(--ink-faint)',background:'transparent',border:'none',cursor:'pointer'}}>▼</button>
-          </div>
-          {/* Remove */}
-          <button onClick={onRemove}
-            className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm transition-all active:scale-90"
-            style={{color:'var(--ink-faint)',background:'transparent'}}
-            onMouseEnter={e=>{e.currentTarget.style.color='#e84040';e.currentTarget.style.background='rgba(232,64,64,.1)';}} onMouseLeave={e=>{e.currentTarget.style.color='var(--ink-faint)';e.currentTarget.style.background='transparent';}}>×</button>
-        </div>
-      );
-    };
-
-    return (
-      <div className="animate-in">
-        {/* Top bar */}
-        <div className="flex items-center justify-between mb-5">
-          <button onClick={onBack}
-            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest transition-all hover:opacity-60 active:scale-95"
-            style={S.faint}>← Back</button>
-          {saved && (
-            <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full animate-in"
-                  style={{background:'rgba(34,197,94,.12)',color:'#22c55e',border:'1px solid rgba(34,197,94,.2)'}}>
-              ✓ Saved
-            </span>
-          )}
-        </div>
-
-        {/* Drink identity */}
-        <div className="rounded-[2.5rem] p-6 shadow-soft border mb-4" style={S.surf}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap gap-1.5 mb-1.5">
-                {(drink.temps?.length ? drink.temps : ['HOT','ICED']).map(t=>(
-                  <span key={t} className={`text-[9px] font-black px-2.5 py-1 rounded-full ${t==='HOT'?'bg-red-100 text-red-500':'bg-blue-100 text-blue-500'}`}>{t}</span>
-                ))}
-                {drink.featured && <span className="text-[9px] font-black px-2.5 py-1 rounded-full" style={{...S.surf2,...S.faint}}>✦ Signature</span>}
-              </div>
-              <h2 className="display text-3xl leading-tight" style={S.ink}>{drink.name}</h2>
-              {drink.description && <p className="text-xs font-medium mt-1" style={S.mid}>{drink.description}</p>}
-            </div>
-            {Number(drink.price)>0 && <span className="text-sm font-bold px-3 py-1 rounded-full flex-shrink-0" style={{...S.surf2,...S.mid}}>{fmtPrice(drink.price)}</span>}
-          </div>
-        </div>
-
-        {/* Ingredients */}
-        <div className="rounded-[2.5rem] p-6 shadow-soft border mb-4" style={S.surf}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="display text-xl" style={S.ink}>INGREDIENTS</h3>
-              <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>{ingredients.length} item{ingredients.length!==1?'s':''}</p>
-            </div>
-            <button onClick={addIng}
-              className="text-[10px] font-bold uppercase tracking-widest px-3.5 py-2 rounded-full transition-all hover:opacity-70 active:scale-95"
-              style={{background:'var(--ink)',color:'var(--bg)'}}>+ Add</button>
-          </div>
-          {ingredients.length > 0 ? (
-            <div className="space-y-2">
-              {ingredients.map((ing, i) => (
-                <Row key={i} value={ing} onChange={v=>updateIng(i,v)} onRemove={()=>removeIng(i)}
-                  onUp={()=>moveIng(i,-1)} onDown={()=>moveIng(i,1)}
-                  isFirst={i===0} isLast={i===ingredients.length-1}
-                  placeholder={`e.g. 2 shots espresso`} index={i} numbered={false} onEnter={addIng}/>
-              ))}
-            </div>
-          ) : (
-            <button onClick={addIng}
-              className="w-full py-6 rounded-2xl border border-dashed text-sm font-medium transition-all hover:opacity-70"
-              style={{borderColor:'var(--border)',color:'var(--ink-faint)'}}>
-              + Add first ingredient
-            </button>
-          )}
-        </div>
-
-        {/* Steps */}
-        <div className="rounded-[2.5rem] p-6 shadow-soft border" style={S.surf}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="display text-xl" style={S.ink}>STEPS</h3>
-              <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={S.faint}>{steps.length} step{steps.length!==1?'s':''}</p>
-            </div>
-            <button onClick={addStep}
-              className="text-[10px] font-bold uppercase tracking-widest px-3.5 py-2 rounded-full transition-all hover:opacity-70 active:scale-95"
-              style={{background:'var(--ink)',color:'var(--bg)'}}>+ Add</button>
-          </div>
-          {steps.length > 0 ? (
-            <div className="space-y-2">
-              {steps.map((step, i) => (
-                <Row key={i} value={step} onChange={v=>updateStep(i,v)} onRemove={()=>removeStep(i)}
-                  onUp={()=>moveStep(i,-1)} onDown={()=>moveStep(i,1)}
-                  isFirst={i===0} isLast={i===steps.length-1}
-                  placeholder={`e.g. Steam milk to 150°F`} index={i} numbered={true} onEnter={addStep}/>
-              ))}
-              {/* Quick-add row at bottom */}
-              <button onClick={addStep}
-                className="w-full py-2.5 rounded-xl border border-dashed text-xs font-bold uppercase tracking-widest transition-all hover:opacity-70 mt-1"
-                style={{borderColor:'var(--border)',color:'var(--ink-faint)'}}>
-                + Add step
-              </button>
-            </div>
-          ) : (
-            <button onClick={addStep}
-              className="w-full py-6 rounded-2xl border border-dashed text-sm font-medium transition-all hover:opacity-70"
-              style={{borderColor:'var(--border)',color:'var(--ink-faint)'}}>
-              + Add first step
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  if (currentDrink) return <RecipeDetail drink={currentDrink} onBack={()=>setSelected(null)} onSave={onUpdateDrink}/>;
-
-  /* ─── List view ──────────────────────────────────────── */
-  const withRecipe = drinks.filter(d => {
-    const p = parseRecipe(d.recipe);
-    return (p.ingredients.length + p.steps.length) > 0;
-  });
+  const withRecipe = drinks.filter(d=>{ const p=parseRecipe(d.recipe); return (p.ingredients.length+p.steps.length)>0; });
 
   return (
     <div>
@@ -964,44 +969,36 @@ const RecipesView = ({menu, onUpdateDrink}) => {
           {withRecipe.length} of {drinks.length} drink{drinks.length!==1?'s':''} have recipes
         </p>
       </div>
-      {drinks.length===0 && (
-        <p className="text-sm font-medium text-center py-8" style={S.faint}>No drinks on menu yet — add drinks in Settings</p>
+      {drinks.length===0&&<p className="text-sm font-medium text-center py-8" style={S.faint}>No drinks on menu yet — add drinks in Settings</p>}
+      {drinks.length>0&&withRecipe.length===0&&<p className="text-xs font-medium mb-4" style={S.faint}>Tap any drink below to add its ingredients and steps.</p>}
+      {drinks.length>0&&withRecipe.length===drinks.length&&(
+        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl mb-3"
+             style={{background:'rgba(34,197,94,.08)',border:'1px solid rgba(34,197,94,.2)'}}>
+          <span style={{color:'#22c55e',fontSize:14}}>✓</span>
+          <p className="text-[10px] font-bold uppercase tracking-widest" style={{color:'#22c55e'}}>All recipes complete</p>
+        </div>
       )}
       <div className="space-y-2">
-        {drinks.map(d => {
-          const p = parseRecipe(d.recipe);
-          const totalSteps = p.steps.length;
-          const totalIng   = p.ingredients.length;
-          const hasContent = totalSteps + totalIng > 0;
+        {drinks.map(d=>{
+          const p=parseRecipe(d.recipe);
+          const totalSteps=p.steps.length, totalIng=p.ingredients.length;
+          const hasContent=totalSteps+totalIng>0;
+          const isComplete = totalSteps>0&&totalIng>0;
           return (
             <button key={d._key} onClick={()=>setSelected(d)}
-              className="w-full flex items-center gap-4 p-4 rounded-2xl text-left border transition-all hover:opacity-80 active:scale-[.99]"
-              style={{...S.surf, borderColor:'var(--border)'}}>
+              className="w-full flex items-center gap-4 p-4 rounded-2xl text-left border border-l-[5px] transition-all hover:opacity-80 active:scale-[.99]"
+              style={{...S.surf,
+                borderColor:'var(--border)',
+                borderLeftColor:isComplete?'#22c55e':hasContent?'#f59e0b':'var(--border)'}}>
               <div className="flex-1 min-w-0">
                 <p className="font-black text-sm uppercase tracking-wide truncate" style={S.ink}>{d.name}</p>
-                {d.description && <p className="text-[11px] font-medium truncate mt-0.5" style={S.faint}>{d.description}</p>}
+                <p className="text-[10px] font-medium mt-0.5" style={S.faint}>
+                  {hasContent
+                    ? [totalIng>0&&`${totalIng} ingredient${totalIng!==1?'s':''}`, totalSteps>0&&`${totalSteps} step${totalSteps!==1?'s':''}`].filter(Boolean).join(' · ')
+                    : 'No recipe yet — tap to add'}
+                </p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {hasContent ? (
-                  <div className="flex gap-1.5">
-                    {totalIng>0 && (
-                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-                        style={{background:'var(--surface-2)',color:'var(--ink-mid)',border:'1px solid var(--border)'}}>
-                        {totalIng} ing
-                      </span>
-                    )}
-                    {totalSteps>0 && (
-                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-                        style={{background:'rgba(34,197,94,.1)',color:'#22c55e',border:'1px solid rgba(34,197,94,.2)'}}>
-                        {totalSteps} step{totalSteps!==1?'s':''}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <span className="text-[9px] font-bold uppercase tracking-widest" style={S.faint}>No recipe</span>
-                )}
-                <span style={S.faint}>›</span>
-              </div>
+              <span className="text-sm flex-shrink-0" style={S.faint}>›</span>
             </button>
           );
         })}
